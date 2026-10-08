@@ -82,20 +82,6 @@ See [CHANGELOG.md](CHANGELOG.md) and [Release notes](RELEASE_NOTES.md).
 
 Do not commit your actual SSH keys, rclone configuration, settings, crash dumps or transfer logs to this repository.
 
-## Known limitations
+## Author and license
 
-NIRUORG is evolving software. Some less frequently used metadata, archive, media and local-tool flows still contain synchronous filesystem work; **a faulty FUSE backend can still stall specific operations**. The app's startup, Work Basket, Compare and conflict preflight have dedicated remote guards, but the entire UI cannot be claimed hang-proof. Resume validates existing partial bytes, but the app is not a transactional database or distributed sync engine. Directory replacement can temporarily preserve a recoverable backup if remote cleanup fails. Use backups for important data and test remote operations with disposable files first.
-
-For issues, provide NIRUORG version, distribution, Qt/PySide6 version, which endpoint was involved and reproduction steps. Do not post connection secrets or unredacted logs.
-
-## Contributing, testing & licensing
-
-- [Engineering review](docs/CODE-REVIEW-0.3.0.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing](docs/TESTING.md) · [GitHub release procedure](docs/GITHUB-PUBLISH.md)
-- [Security policy](SECURITY.md) · [Contributing](CONTRIBUTING.md)
-- **License:** MIT License for original project code. See [LICENSE](LICENSE). Third-party components retain their own license terms.
-
-Developed as a personal Linux tool by Nicklas Rudolfsson.
-
-## Author
-
-Ing Leif Nicklas Rudolfsson
+Ing Leif Nicklas Rudolfsson. MIT License; see [LICENSE](LICENSE).
