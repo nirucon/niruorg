@@ -92,6 +92,6 @@ For issues, provide NIRUORG version, distribution, Qt/PySide6 version, which end
 
 - [Engineering review](docs/CODE-REVIEW-0.3.0.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing](docs/TESTING.md) · [GitHub release procedure](docs/GITHUB-PUBLISH.md)
 - [Security policy](SECURITY.md) · [Contributing](CONTRIBUTING.md)
-- **License:** no redistribution license has been selected yet; publishing source code does not by itself grant reuse rights. The repository owner may add a license later.
+- **License:** MIT License for original project code. See [LICENSE](LICENSE). Third-party components retain their own license terms.
 
 Developed as a personal Linux tool by Nicklas Rudolfsson.
