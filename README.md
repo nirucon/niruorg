@@ -95,3 +95,7 @@ For issues, provide NIRUORG version, distribution, Qt/PySide6 version, which end
 - **License:** MIT License for original project code. See [LICENSE](LICENSE). Third-party components retain their own license terms.
 
 Developed as a personal Linux tool by Nicklas Rudolfsson.
+
+## Author
+
+Ing Leif Nicklas Rudolfsson
