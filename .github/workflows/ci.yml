@@ -1,0 +1,48 @@
+name: NIRUORG Python checks
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-integrity:
+    name: Python and transfer integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Python sources
+        run: python -m compileall -q niruorg
+      - name: Qt-free regression and real local transfer checks
+        run: python regression-suite.py --non-qt
+
+  qt-smoke:
+    name: PySide6 offscreen smoke
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Qt platform dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install PySide6
+        run: python -m pip install 'PySide6>=6.7,<7'
+      - name: Full regression suite
+        run: python regression-suite.py
+      - name: Application self-test
+        run: python niruorg/app.py --self-test
+      - name: Qt offscreen smoke test
+        run: timeout 15s python gui-smoke-test.py

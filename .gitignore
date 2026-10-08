@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local editor and tooling
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Installation, local state and secrets
+.env
+.env.*
+!.env.example
+*.log
+*.core
+core
+core.*
+*.crash
+*.sqlite
+*.db
+*.db-journal
+*.key
+*.pem
+*.p12
+*.pfx
+*.secret
+rclone.conf
+ssh_config
+id_ed25519*
+id_rsa*
+owned-mounts.json
+
+# Release ZIPs belong on GitHub Releases, not in Git history
+/NIRUORG-*.zip
+/dist/
+/build/

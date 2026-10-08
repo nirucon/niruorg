@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=NIRUORG
+GenericName=File Organizer
+Comment=Minimal, fast Linux file organizer
+Exec=niruorg %F
+TryExec=niruorg
+Icon=niruorg
+Terminal=false
+Categories=System;FileTools;FileManager;Utility;
+MimeType=inode/directory;
+StartupWMClass=niruorg
+Keywords=files;organizer;manager;sftp;nextcloud;
+StartupNotify=false
