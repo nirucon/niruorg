@@ -10,4 +10,4 @@ for node in tree.body:
 assert tests is not None
 assert all(isinstance(x, tuple) and len(x)==3 for x in tests), "Every TESTS entry must be a 3-tuple (name, qt, timeout)"
 assert all(isinstance(x[0],str) and isinstance(x[1],bool) and isinstance(x[2],int) for x in tests)
-print("0.3.0 regression manifest schema OK")
+print("0.4.0 regression manifest schema OK")

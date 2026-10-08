@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 app=Path('niruorg/app.py').read_text()
-assert "VERSION='0.3.0'" in app
+assert "VERSION='0.4.0'" in app
 assert 'class NiruDialog(QDialog)' in app
 assert 'Qt.Key.Key_Escape' in app and "QPushButton('Close',self)" in app
 assert "cancel=QPushButton('Cancel operation')" in app

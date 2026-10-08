@@ -8,4 +8,4 @@ assert "with os.fdopen(helper_fd,'w',encoding='utf-8')" in segment
 assert 'helper.unlink(missing_ok=True)' in segment
 assert 'pass_fds=(helper_fd_r,)' in segment
 assert 'tempfile.gettempdir()' not in segment
-print('SSH helper safety 0.3.0 · unpredictable temp pathname and inherited secret FD OK')
+print('SSH helper safety 0.4.0 · unpredictable temp pathname and inherited secret FD OK')

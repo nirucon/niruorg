@@ -2,7 +2,7 @@
 from pathlib import Path
 s=(Path(__file__).parent/'niruorg/app.py').read_text()
 checks={
- 'version':"VERSION='0.3.0'" in s,
+ 'version':"VERSION='0.4.0'" in s,
  'connection editor parented to manager':"box=NiruDialog(d); box.setWindowTitle(title); box.setModal(True)" in s,
  'connection editor Wayland-safe':"box.raise_()" not in s and "box.activateWindow()" not in s,
  'connection click status':"status.setText('Opening connection editor…')" in s,

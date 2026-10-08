@@ -2,7 +2,7 @@
 from pathlib import Path
 import ast,re
 src=Path('niruorg/app.py').read_text()
-assert "VERSION='0.3.0'" in src
+assert "VERSION='0.4.0'" in src
 assert 'class RemoteProbeWorker(QRunnable)' in src
 assert 'self._remote_probe_pool.setMaxThreadCount(2)' in src
 assert "self.pane1._commit_go(Path.home(),True)" in src
@@ -28,4 +28,4 @@ identify=body('_identify_remote_path')
 assert '.resolve()' not in identify and 'os.path.ismount' not in identify
 main=body('main')
 assert "Path(sys.argv[1]).is_dir()" not in main
-print('startup/remote 0.3.0 regression OK')
+print('startup/remote 0.4.0 regression OK')

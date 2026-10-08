@@ -1,6 +1,6 @@
 from pathlib import Path
 s=Path('niruorg/app.py').read_text()
-assert "VERSION='0.3.0'" in s
+assert "VERSION='0.4.0'" in s
 assert 'class DiscoveryWorker(QRunnable)' in s
 assert 'def _start_worker(self,pool,worker' in s
 assert 'worker.setAutoDelete(False)' in s
@@ -15,4 +15,4 @@ assert 'class Discovery' not in body
 # Every Main-owned QRunnable start goes through the retention helper.
 assert 'self._remote_probe_pool.start(' not in s
 assert 'self.threadpool.start(worker)' not in s
-print('0.3.0 Qt worker lifetime regression OK')
+print('0.4.0 Qt worker lifetime regression OK')

@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent
 # maintaining separate lists that can silently diverge.
 TESTS = [
     ('release-test.py', False, 0),
+    ('command-palette-040-test.py', False, 0),
     ('upgrade-safety-test.py', False, 0),
     ('shortcut-test.py', True, 8),
     ('permanent-delete-test.py', True, 8),

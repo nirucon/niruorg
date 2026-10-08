@@ -1,3 +1,10 @@
+## 0.4.0 — 2026-10-08
+
+- Keyboard-first searchable command palette replaces the old Actions picker.
+- New palette regression contract and version alignment.
+- Maintains 0.3.0 transfer safety and upgrade architecture.
+- Known limitations and future features explicitly documented.
+
 # Changelog
 
 ## 0.3.0 — Transfer Integrity & GitHub Baseline

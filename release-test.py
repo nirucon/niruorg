@@ -37,14 +37,14 @@ assert 'def integrations' in app and 'def nextcloud_share' in app and 'def media
 assert 'class BrowserTree(QTreeView)' in app and 'def keyPressEvent' in app and "'Shift+Delete'" in app
 assert 'def archive_browser' in app and 'Unsafe archive path blocked' in app
 assert 'def temporary_split' in app and 'def path_actions' in app
-assert "VERSION='0.3.0'" in app
+assert "VERSION='0.4.0'" in app
 assert f"assert VERSION=='{v}'" in app, 'Self-test VERSION assertion is stale'
 assert 'Shortcut regression OK' in shortcut and 'Shift+Delete' in shortcut
 assert 'Permanent delete regression OK' in delete_test and '_confirm_permanent_delete' in app
 assert 'QMessageBox.StandardButton.Delete' not in app
 assert 'def manage_niru_actions' in app and 'def manage_recipes' in app and 'niru_actions_json' in app and 'recipes_json' in app
 assert "target.name+'.niruorg-part'" in app and 'os.replace(partial,target)' in app
-assert "VERSION='0.3.0'" in app
+assert "VERSION='0.4.0'" in app
 ast.parse(app); ast.parse(smoke); ast.parse(shortcut); ast.parse(delete_test)
 assert (root/'assets/niruorg.svg').exists()
 print(f'Release contract OK · {v}')

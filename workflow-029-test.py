@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 s=Path('niruorg/app.py').read_text()
-assert "VERSION='0.3.0'" in s
+assert "VERSION='0.4.0'" in s
 assert "self.s.value('work_basket'" in s
 assert 'def _save_work_basket' in s and "self.s.setValue('work_basket'" in s
 assert "WORK BASKET · {len(self.dropzone)}" in s

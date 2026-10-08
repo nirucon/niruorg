@@ -1,6 +1,6 @@
 from pathlib import Path
 s=Path("niruorg/app.py").read_text()
-assert "VERSION='0.3.0'" in s
+assert "VERSION='0.4.0'" in s
 assert "Save & connect" in s
 assert "OpenSSH / Auto" in s
 assert "MagicDNS / 100.x IP" in s

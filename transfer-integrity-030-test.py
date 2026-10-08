@@ -105,4 +105,4 @@ with tempfile.TemporaryDirectory(prefix='niruorg-safety-030-') as tmp:
     # File copy errors must not delete an earlier directory with the same name.
     (dst/'file.bin').unlink(); (dst/'file.bin').mkdir()
     assert run(f,dst).signals.failed.rows and (dst/'file.bin').is_dir()
-print('Transfer integrity 0.3.0 · local copy/replace/resume/cancel/symlink/self-copy OK')
+print('Transfer integrity 0.4.0 · local copy/replace/resume/cancel/symlink/self-copy OK')

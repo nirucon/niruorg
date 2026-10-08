@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-VERSION="0.3.0"; APP="niruorg"; SRC_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"; BASE="$HOME/.local/share/niruorg"; RELEASES="$BASE/releases"; RELEASE_DIR="$RELEASES/$VERSION"; CURRENT="$BASE/current"; BIN="$HOME/.local/bin"; DESK="$HOME/.local/share/applications"; ICON="$HOME/.local/share/icons/hicolor/scalable/apps"; MIME="$HOME/.local/share/mime"; STATE="$HOME/.local/state/niruorg"
+VERSION="0.4.0"; APP="niruorg"; SRC_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"; BASE="$HOME/.local/share/niruorg"; RELEASES="$BASE/releases"; RELEASE_DIR="$RELEASES/$VERSION"; CURRENT="$BASE/current"; BIN="$HOME/.local/bin"; DESK="$HOME/.local/share/applications"; ICON="$HOME/.local/share/icons/hicolor/scalable/apps"; MIME="$HOME/.local/share/mime"; STATE="$HOME/.local/state/niruorg"
 echo "NIRUORG $VERSION installer"; echo "------------------------"
 need(){ python3 - <<'PY' >/dev/null 2>&1
 import PySide6

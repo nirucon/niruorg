@@ -1,6 +1,6 @@
 # NIRUORG
 
-**NIRUORG 0.3.0** is a personal, keyboard-friendly two-pane file organizer for Linux, written in Python and PySide6. It is developed primarily for an **Omarchy / Arch Linux + Hyprland + Kitty + Fish** desktop and is also intended to work on Debian-based Linux systems.
+**NIRUORG 0.4.0** is a personal, keyboard-friendly two-pane file organizer for Linux, written in Python and PySide6. It is developed primarily for an **Omarchy / Arch Linux + Hyprland + Kitty + Fish** desktop and is also intended to work on Debian-based Linux systems.
 
 This repository publishes the author's *personal setup and development project*, not a commercial file-manager product. It is usable as a standalone app, but your desktop, Qt, FUSE and external integrations may require local configuration.
 
@@ -32,7 +32,7 @@ Launch with `niruorg`. There are no system-wide application files or Docker serv
 
 To try the source without installing, run `./run.sh` in a desktop session with PySide6 already installed.
 
-**Upgrade from 0.2.0:** use the 0.3.0 `install.sh` directly. The installer retains the previous release and existing `QSettings` preferences, connections, Work Basket and workspaces. It does not reset user data. For rollback guidance, see [INSTALL.md](docs/INSTALL.md).
+**Upgrade from 0.3.0:** use the 0.4.0 `install.sh` directly. The installer retains the previous release and existing `QSettings` preferences, connections, Work Basket and workspaces. It does not reset user data. For rollback guidance, see [INSTALL.md](docs/INSTALL.md).
 
 ## Daily workflow
 
@@ -60,19 +60,16 @@ Useful shortcuts (actual application bindings):
 
 Use **Keybindings** in the app for the complete list. In Hyprland, `Super+Q` sends a normal close request: NIRUORG handles owned mount cleanup during shutdown. A forced kill cannot run cleanup.
 
-## 0.3.0 highlights
+## 0.4.0 highlights
 
-This release prioritizes transfer integrity and GitHub readiness:
+- Searchable, keyboard-first command palette with immediate filtering, arrow navigation and Enter activation; replaces the old fixed-choice Actions dialog.
+- Regression test for the command palette and release consistency.
+- Repository remains source-only; historical regression tests are retained because they protect current behavior, not because they are old releases.
+- Previous transfer-integrity, remote mount, and session safeguards remain in place.
 
-- Resume checks **all existing partial bytes** against the current source; an incompatible partial fails safely instead of silently corrupting the destination.
-- File replacement is staged and only published after a complete copy. A failed transfer does not delete the original target first.
-- Directory transfers stage a separate tree, then publish it. Cancelled transfers do not remove an existing destination directory.
-- Copy-into-self and unsupported source types are rejected; symlinks are preserved rather than followed.
-- Unsafe automatic Undo is refused for replaced originals and remote transfers, rather than risking deletion or GUI stalls.
-- Fixed a malformed Qt media icon drawing call and corrected Keybindings hints for `Ctrl+T` / `Ctrl+Alt+T`.
-- Added executable Qt-free transfer-integrity tests, a GitHub Actions workflow, release documentation and repository hygiene.
+**Scope:** This is an incremental quality release. The planned transfer queue redesign, safe sync, and comprehensive asynchronous FUSE I/O conversion are not represented as completed work. They require separate implementation and live remote testing.
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and [Release notes](RELEASE_NOTES.md) for the current release.
+See [CHANGELOG.md](CHANGELOG.md) and [Release notes](RELEASE_NOTES.md).
 
 ## Data & privacy
 

@@ -9,7 +9,7 @@ try:
  from .transfer_safety import TransferSafetyError,verified_partial_offset,guard_transfer_locations
 except ImportError:  # Direct execution via installer's app.py launcher
  from transfer_safety import TransferSafetyError,verified_partial_offset,guard_transfer_locations
-APP='NIRUORG'; VERSION='0.3.0'
+APP='NIRUORG'; VERSION='0.4.0'
 THEMES={
  'Niru Noir':{'bg':'#090909','fg':'#ededed','muted':'#858585','panel':'#141414','surface':'#1b1b1b','border':'#292929','accent':'#bdbdbd','accentfg':'#090909','sel':'#333333','danger':'#d56b6b'},
  'C. Larsson':{'bg':'#eee5d1','fg':'#29251f','muted':'#776d5e','panel':'#e2d3b7','surface':'#e8dcc5','border':'#bbaa8d','accent':'#745c3e','accentfg':'#fffaf0','sel':'#d3c19f','danger':'#9c3d32'},
@@ -2935,9 +2935,31 @@ class Main(QMainWindow):
    fn=entries[it.data(0,Qt.ItemDataRole.UserRole)][1]; d.accept(); fn()
   q.textChanged.connect(fill); q.returnPressed.connect(run); w.itemDoubleClicked.connect(lambda *_:run()); fill(); q.setFocus(); d.exec()
  def all_actions(self):
+  """Keyboard-first searchable command palette; execute only after closing the dialog."""
   items=[('New tab',lambda:self.active.new_tab()),('Close tab',lambda:self.active.close_tab(self.active.tabs.currentIndex())),('Open',self.open_selected),('Open With…',self.open_with),('Context Lens',self.context_lens),('New…',self.quick_create),('Find files',self.find_files),('Jump',self.jump),('Focus browser',self.toggle_focus),('Quick Look panel',self.toggle_quicklook),('Preview / Inspector',self.preview),('Open terminal here',self.terminal_here),('Clipboard inspector',self.clipboard_inspector),('Folder health',self.folder_health),('Find duplicates…',self.duplicate_finder),('Saved searches…',self.saved_searches),('NIRU Actions…',self.manage_niru_actions),('Recipes…',self.manage_recipes),('Operation queue',self.operation_queue),('Operation history',self.operation_history),('Work Basket',self.show_dropzone),('Add to Work Basket',self.add_dropzone),('Compare panes',self.compare_panes),('Workspace Snapshots',self.manage_workspaces),('Servers',self.manage_servers),('Import connections…',self.import_connections),('Inspect package…',self.package_inspector),('System diagnostics…',self.system_diagnostics),('Cloud services…',self.manage_clouds),('Integrations…',self.integrations),('Properties',self.properties),('Keybindings',self.show_keybindings)]
-  x,ok=QInputDialog.getItem(self,'All Actions','Action:',[x[0] for x in items],0,False)
-  if ok:dict(items)[x]()
+  d=NiruDialog(self); d.setWindowTitle('Commands'); d.resize(530,490)
+  layout=QVBoxLayout(d); layout.setContentsMargins(16,16,16,16); layout.setSpacing(9)
+  query=QLineEdit(d); query.setPlaceholderText('Type a command…'); layout.addWidget(query)
+  results=QListWidget(d); layout.addWidget(results,1)
+  hint=QLabel('↑ ↓ navigate · Enter run · Esc close',d); hint.setObjectName('muted'); layout.addWidget(hint)
+  def refresh(value=''):
+   results.clear(); needle=value.casefold().strip()
+   for index,(name,_) in enumerate(items):
+    if needle and not all(word in name.casefold() for word in needle.split()):continue
+    item=QListWidgetItem(name); item.setData(Qt.ItemDataRole.UserRole,index); results.addItem(item)
+   if results.count():results.setCurrentRow(0)
+  def activate():
+   item=results.currentItem()
+   if item is None:return
+   callback=items[item.data(Qt.ItemDataRole.UserRole)][1]
+   d.accept(); QTimer.singleShot(0,callback)
+  def move_selection(delta):
+   if results.count():results.setCurrentRow((results.currentRow()+delta)%results.count())
+  query.textChanged.connect(refresh); query.returnPressed.connect(activate)
+  results.itemDoubleClicked.connect(lambda *_:activate())
+  QShortcut(QKeySequence('Down'),query,activated=lambda:move_selection(1))
+  QShortcut(QKeySequence('Up'),query,activated=lambda:move_selection(-1))
+  refresh(); query.setFocus(); d.exec()
  def integration_status(self):
   checks=[('MPV','mpv'),('LocalSend','localsend'),('fd','fd'),('ripgrep','rg'),('7-Zip','7z'),('SSH','ssh'),('SSHFS','sshfs'),('Secret Service','secret-tool'),('Proton Pass CLI · optional','pass-cli'),('ffprobe','ffprobe'),('rclone','rclone'),('NIRUNOTE','nirunote'),('NIRUPRES','nirupres'),('NIRUWORD','niruword')]
   return [(label, shutil.which(cmd) or ('fdfind' if cmd=='fd' and shutil.which('fdfind') else None)) for label,cmd in checks]
@@ -3336,6 +3358,6 @@ class Main(QMainWindow):
 def main():
  if '--version' in sys.argv:print(VERSION);return 0
  if '--self-test' in sys.argv:
-  assert human(1024)=='1.0 KB'; assert 'Nord' in THEMES; assert VERSION=='0.3.0'; assert ConnectionDiagnosticWorker; assert hasattr(Main,'undo_last'); assert hasattr(FilePane,'update_breadcrumbs'); assert hasattr(Main,'manage_servers'); assert hasattr(Main,'open_server_named'); assert hasattr(Main,'manage_workspaces'); assert hasattr(Main,'manage_targets'); assert hasattr(Main,'smart_view'); assert hasattr(Main,'operation_history'); assert hasattr(Main,'format_dt'); assert hasattr(Main,'integrations'); assert hasattr(Main,'nextcloud_share'); assert hasattr(Main,'media_info'); assert hasattr(Main,'niru_player'); assert hasattr(Main,'play_audio'); assert hasattr(Main,'storage_view'); assert hasattr(Main,'permissions_view'); assert hasattr(Main,'operation_queue'); assert hasattr(Main,'toggle_quicklook'); assert hasattr(Main,'compare_panes'); assert hasattr(Main,'jump'); assert hasattr(Main,'toggle_focus'); assert hasattr(Main,'_sidebar_section'); assert hasattr(Main,'open_workspace_named'); assert hasattr(Main,'show_keybindings'); assert hasattr(Main,'quick_create'); assert hasattr(Main,'refresh_current'); assert hasattr(Main,'input_diagnostics'); assert hasattr(FilePane,'forward'); assert hasattr(Main,'clipboard_inspector'); assert hasattr(Main,'folder_health'); assert hasattr(Main,'duplicate_finder'); assert hasattr(Main,'saved_searches'); assert hasattr(Main,'manage_niru_actions'); assert hasattr(Main,'manage_recipes'); assert hasattr(Main,'run_niru_action'); assert hasattr(Main,'run_recipe'); assert hasattr(Main,'open_with'); assert hasattr(Main,'file_associations'); assert hasattr(Main,'context_lens'); assert hasattr(Main,'closeEvent'); assert hasattr(Main,'manage_clouds'); assert hasattr(Main,'open_cloud'); assert hasattr(Main,'close_split'); assert hasattr(SearchWorker,'cancel'); assert hasattr(Main,'all_actions'); assert hasattr(Main,'_save_work_basket'); assert hasattr(Main,'path_actions'); assert callable(safe_extract_zip); assert callable(safe_extract_tar); print('NIRUORG self-test OK'); return 0
+  assert human(1024)=='1.0 KB'; assert 'Nord' in THEMES; assert VERSION=='0.4.0'; assert ConnectionDiagnosticWorker; assert hasattr(Main,'undo_last'); assert hasattr(FilePane,'update_breadcrumbs'); assert hasattr(Main,'manage_servers'); assert hasattr(Main,'open_server_named'); assert hasattr(Main,'manage_workspaces'); assert hasattr(Main,'manage_targets'); assert hasattr(Main,'smart_view'); assert hasattr(Main,'operation_history'); assert hasattr(Main,'format_dt'); assert hasattr(Main,'integrations'); assert hasattr(Main,'nextcloud_share'); assert hasattr(Main,'media_info'); assert hasattr(Main,'niru_player'); assert hasattr(Main,'play_audio'); assert hasattr(Main,'storage_view'); assert hasattr(Main,'permissions_view'); assert hasattr(Main,'operation_queue'); assert hasattr(Main,'toggle_quicklook'); assert hasattr(Main,'compare_panes'); assert hasattr(Main,'jump'); assert hasattr(Main,'toggle_focus'); assert hasattr(Main,'_sidebar_section'); assert hasattr(Main,'open_workspace_named'); assert hasattr(Main,'show_keybindings'); assert hasattr(Main,'quick_create'); assert hasattr(Main,'refresh_current'); assert hasattr(Main,'input_diagnostics'); assert hasattr(FilePane,'forward'); assert hasattr(Main,'clipboard_inspector'); assert hasattr(Main,'folder_health'); assert hasattr(Main,'duplicate_finder'); assert hasattr(Main,'saved_searches'); assert hasattr(Main,'manage_niru_actions'); assert hasattr(Main,'manage_recipes'); assert hasattr(Main,'run_niru_action'); assert hasattr(Main,'run_recipe'); assert hasattr(Main,'open_with'); assert hasattr(Main,'file_associations'); assert hasattr(Main,'context_lens'); assert hasattr(Main,'closeEvent'); assert hasattr(Main,'manage_clouds'); assert hasattr(Main,'open_cloud'); assert hasattr(Main,'close_split'); assert hasattr(SearchWorker,'cancel'); assert hasattr(Main,'all_actions'); assert hasattr(Main,'_save_work_basket'); assert hasattr(Main,'path_actions'); assert callable(safe_extract_zip); assert callable(safe_extract_tar); print('NIRUORG self-test OK'); return 0
  app=QApplication(sys.argv); app.setApplicationName(APP); app.setOrganizationName('NIRU'); app.setDesktopFileName('niruorg'); w=Main(sys.argv[1] if len(sys.argv)>1 else None); w.show(); w.startup_trace.mark('show called'); return app.exec()
 if __name__=='__main__':raise SystemExit(main())

@@ -2,7 +2,7 @@ from pathlib import Path
 
 app = Path('niruorg/app.py').read_text()
 install = Path('install.sh').read_text()
-assert "VERSION='0.3.0'" in app
+assert "VERSION='0.4.0'" in app
 
 # Behavioural SSH unlock/retry contract. Do not pin user-facing prose: wording may
 # legitimately improve without changing the security or retry behaviour.
@@ -30,4 +30,4 @@ for forbidden in ['run_detached(cmd', "kitty','--hold", 'x-terminal-emulator']:
     assert forbidden not in segment, forbidden
 suite=Path('regression-suite.py').read_text()
 assert "('interaction-043-test.py', False, 0)" in suite
-print('0.3.0 SSH key unlock / retry behavioural regression OK')
+print('0.4.0 SSH key unlock / retry behavioural regression OK')

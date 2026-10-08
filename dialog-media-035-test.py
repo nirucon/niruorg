@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 app=Path('niruorg/app.py').read_text()
-assert "VERSION='0.3.0'" in app
+assert "VERSION='0.4.0'" in app
 assert "def addone():" in app and "server_editor('Add connection')" in app
 assert "Could not open connection editor" in app
 assert "if label is not None:label.setVisible(visible)" in app

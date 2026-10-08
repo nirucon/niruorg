@@ -1,7 +1,7 @@
 from pathlib import Path
 p=Path(__file__).parent/'niruorg/app.py'
 s=p.read_text()
-assert "VERSION='0.3.0'" in s
+assert "VERSION='0.4.0'" in s
 assert 'def _ssh_agent_environment(self,create=False):' in s
 assert "ssh-agent-{os.getpid()}.sock" in s
 assert 'self._stop_private_ssh_agent()' in s
@@ -13,4 +13,4 @@ assert 'run_detached(' not in unlock
 assert "poll.timeout.connect(check_unlocked)" not in unlock
 assert "body.setTextFormat(Qt.TextFormat.PlainText)" in s
 assert "SSH key needs to be unlocked</b>" not in s
-print('0.3.0 SSH agent portability / native unlock UX regression OK')
+print('0.4.0 SSH agent portability / native unlock UX regression OK')
