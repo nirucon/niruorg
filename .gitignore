@@ -42,3 +42,7 @@ owned-mounts.json
 /NIRUORG-*.zip
 /dist/
 /build/
+
+# NIRUORG source packages
+!niruorg/core/
+!niruorg/core/**

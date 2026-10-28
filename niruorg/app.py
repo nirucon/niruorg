@@ -11,12 +11,16 @@ try:
  from .services.theme import default_theme,load_nirux_metrics,load_nirux_palette
  from .services.theme_watcher import ThemeWatcher
  from .services.nextcloud import NextcloudClient,NextcloudError
+ from .services.local_watcher import LocalDirectoryWatcher
+ from .core.rename import RenameError,execute_bulk_rename,plan_bulk_rename
 except ImportError:  # Direct execution via installer's app.py launcher
  from transfer_safety import TransferSafetyError,verified_partial_offset,guard_transfer_locations
  from utils.workers import TaskWorker
  from services.theme import default_theme,load_nirux_metrics,load_nirux_palette
  from services.theme_watcher import ThemeWatcher
  from services.nextcloud import NextcloudClient,NextcloudError
+ from services.local_watcher import LocalDirectoryWatcher
+ from core.rename import RenameError,execute_bulk_rename,plan_bulk_rename
 APP='NIRUORG'; VERSION='0.4.0'
 THEMES={
  'Niru Noir':{'bg':'#090909','fg':'#ededed','muted':'#858585','panel':'#141414','surface':'#1b1b1b','border':'#292929','accent':'#bdbdbd','accentfg':'#090909','sel':'#333333','danger':'#d56b6b'},
@@ -107,9 +111,11 @@ class ImageViewerDialog(NiruDialog):
   super().resizeEvent(event)
   if self.resize_handler:QTimer.singleShot(0,self.resize_handler)
 class SemanticIconProvider(QFileIconProvider):
- def __init__(self,pal):super().__init__(); self.pal=pal
- def set_palette(self,pal):self.pal=pal
+ def __init__(self,pal):super().__init__(); self.pal=pal; self._cache={}
+ def set_palette(self,pal):
+  if pal!=self.pal:self.pal=pal; self._cache.clear()
  def _icon(self,kind):
+  if kind in self._cache:return self._cache[kind]
   pm=QPixmap(32,32); pm.fill(Qt.GlobalColor.transparent); q=QPainter(pm); q.setRenderHint(QPainter.RenderHint.Antialiasing)
   fg=QColor(self.pal.get('muted','#888')); ac=QColor(self.pal.get('accent','#bbb')); bg=QColor(self.pal.get('surface','#222'))
   pen=QPen(ac if kind in ('folder','drive') else fg,1.7); q.setPen(pen); q.setBrush(QBrush(bg))
@@ -125,7 +131,7 @@ class SemanticIconProvider(QFileIconProvider):
    q.drawRoundedRect(7,5,18,22,2,2); q.drawLine(16,6,16,21); q.drawLine(13,10,16,10); q.drawLine(16,14,19,14); q.drawLine(13,18,16,18)
   else:
    q.drawRoundedRect(7,4,18,24,2,2); q.drawLine(11,11,21,11); q.drawLine(11,16,21,16); q.drawLine(11,21,18,21)
-  q.end(); return QIcon(pm)
+  q.end(); icon=QIcon(pm); self._cache[kind]=icon; return icon
  def icon(self,arg):
   try:
    if hasattr(arg,'isDir') and arg.isDir(): return self._icon('folder')
@@ -825,7 +831,7 @@ class FilePane(QWidget):
   self._apply_root(self.current); self.path.setText(str(self.current)); self.location_stack.setCurrentWidget(self.crumb); self.update_breadcrumbs(); self.filter.clear(); self.view.clearSelection(); self.view.setCurrentIndex(QModelIndex())
   if push:
    self.history=self.history[:self.hist+1]; self.history.append(str(self.current)); self.hist=len(self.history)-1
-  self.owner.set_active(self); self.owner.record_location(self.current); self._sync_tab(); self.owner.invalidate_quicklook(); self.owner.update_status()
+  self.owner.set_active(self); self.owner.record_location(self.current); self._sync_tab(); self.owner.invalidate_quicklook(); self.owner.update_local_watch(); self.owner.update_status()
  def go(self,path,push=True,leave_remote=False):
   p=Path(os.path.abspath(os.path.expanduser(str(path))))
   remote=self.owner._remote_definition_for_path(p)
@@ -904,11 +910,13 @@ class Main(QMainWindow):
   self._private_ssh_agent_pid=None; self._private_ssh_agent_sock=None
   QApplication.instance().installEventFilter(self)
   self.setWindowTitle(f'{APP}'); self.setWindowIcon(QIcon(str(Path(__file__).resolve().parent.parent/'assets/niruorg.svg'))); self.resize(1180,760); self.setMinimumSize(760,460)
-  self.sidebar=SidebarList(); self.sidebar.setFixedWidth(176); self.sidebar.itemClicked.connect(self.sidebar_clicked); self.sidebar.pathsDropped.connect(self.add_shortcuts); self.sidebar.customContextMenuRequested.connect(self.sidebar_context_menu); self.build_sidebar(); self.startup_trace.mark('cheap sidebar')
+  self.sidebar=SidebarList(); self.sidebar.setAccessibleName('Locations and connections'); self.sidebar.setFixedWidth(176); self.sidebar.itemClicked.connect(self.sidebar_clicked); self.sidebar.pathsDropped.connect(self.add_shortcuts); self.sidebar.customContextMenuRequested.connect(self.sidebar_context_menu); self.build_sidebar(); self.startup_trace.mark('cheap sidebar')
   self.pane1=FilePane(self); self.pane2=FilePane(self); self.pane2.hide(); self.active=self.pane1; self.pane1.setProperty('activePane',True); self._install_browser_shortcuts()
+  self.pane1.view.setAccessibleName('Left file list'); self.pane2.view.setAccessibleName('Right file list'); self.pane1.filter.setAccessibleName('Filter left pane'); self.pane2.filter.setAccessibleName('Filter right pane'); self.pane1.path.setAccessibleName('Left pane location'); self.pane2.path.setAccessibleName('Right pane location')
   self.split=QSplitter(); self.split.setObjectName('mainSplitter'); self.split.addWidget(self.pane1); self.split.addWidget(self.pane2); self.split.setChildrenCollapsible(False); self.split.setHandleWidth(7); self.split.setStretchFactor(0,1); self.split.setStretchFactor(1,1); self.split.splitterMoved.connect(self._remember_split_sizes)
+  self.local_watcher=LocalDirectoryWatcher(self); self.local_watcher.changed.connect(self._local_directory_changed)
   center=QWidget(); row=QHBoxLayout(center); row.setContentsMargins(0,0,0,0); row.setSpacing(0); row.addWidget(self.sidebar); row.addWidget(self.split,1)
-  self.status=QLabel(); self.status.setObjectName('status'); self.status.setContentsMargins(12,6,12,8)
+  self.status=QLabel(); self.status.setObjectName('status'); self.status.setAccessibleName('File manager status'); self.status.setContentsMargins(12,6,12,8)
   self.transfer_bar=QWidget(); self.transfer_bar.setObjectName('transferBar'); tb=QHBoxLayout(self.transfer_bar); tb.setContentsMargins(12,7,8,7); tb.setSpacing(10)
   texts=QWidget(); tx=QVBoxLayout(texts); tx.setContentsMargins(0,0,0,0); tx.setSpacing(1); self.transfer_title=QLabel(); self.transfer_title.setObjectName('transferTitle'); self.transfer_detail=QLabel(); self.transfer_detail.setObjectName('muted'); tx.addWidget(self.transfer_title); tx.addWidget(self.transfer_detail)
   self.progress=QProgressBar(); self.progress.setTextVisible(False); self.progress.setFixedWidth(220); self.progress.setMaximumHeight(5); self.transfer_cancel=QToolButton(); self.transfer_cancel.setText('Cancel'); self.transfer_cancel.clicked.connect(self._cancel_visible_transfer); tb.addWidget(texts,1); tb.addWidget(self.progress); tb.addWidget(self.transfer_cancel); self.transfer_bar.hide()
@@ -918,6 +926,7 @@ class Main(QMainWindow):
  def showEvent(self,event):
   super().showEvent(event)
   if not getattr(self,'_startup_show_marked',False):self._startup_show_marked=True; self.startup_trace.mark('window shown')
+  self.update_local_watch()
  def sidebar_clicked(self,i):
   target=i.data(Qt.ItemDataRole.UserRole)
   if isinstance(target,str) and target.startswith('__section__:'):
@@ -1289,7 +1298,7 @@ class Main(QMainWindow):
    pane.setProperty('activePane',pane is p); pane.tabs.setProperty('activePane',pane is p); pane.style().unpolish(pane); pane.style().polish(pane); pane.tabs.style().unpolish(pane.tabs); pane.tabs.style().polish(pane.tabs); pane.update_breadcrumbs()
   if hasattr(self,'copy_other_action') and self.copy_other_action:
    self.copy_other_action.setText(self.copy_other_label()); self.move_other_action.setText(self.move_other_label())
-  self.update_status()
+  self.update_local_watch(); self.update_status()
  def pane_side(self,pane):return 'left' if pane is self.pane1 else 'right'
  def other_side(self,pane=None):return 'right' if (pane or self.active) is self.pane1 else 'left'
  def open_other_label(self):return f'Open in {self.other_side()} pane'
@@ -1309,12 +1318,24 @@ class Main(QMainWindow):
  def selected(self):return self.active.selected()
  def current_dir(self):return self.active.current
  def update_status(self):
-  s=self.selected(); extra=' · split' if self.pane2.isVisible() else ''; total=0
-  for p in s:
-   try:
-    if p.is_file():total+=p.stat().st_size
+  s=self.selected(); parts=[]; root=self.active.view.rootIndex(); count=self.active.proxy.rowCount(root)
+  if self.pane2.isVisible():parts.append(f'{self.pane_side(self.active).capitalize()} active')
+  parts.append(f'{count} item(s)')
+  if s:
+   total=0
+   if not self.active.is_remote():
+    for p in s:
+     try:
+      if p.is_file():total+=p.stat().st_size
+     except OSError:pass
+   parts.append(f'{len(s)} selected'+(f' · {human(total)}' if total else ''))
+  if not self.active.is_remote():
+   try:parts.append(f'{human(shutil.disk_usage(self.active.current).free)} free')
    except OSError:pass
-  label=(f'{len(s)} selected' + (f' · {human(total)}' if total else '')) if s else str(self.current_dir()); side=(f'{self.pane_side(self.active).capitalize()} active · ' if self.pane2.isVisible() else ''); self.status.setText(side+label+extra)
+  parts.append(f'REMOTE · {self.active.remote_name}' if self.active.is_remote() else 'LOCAL')
+  if self.operations:parts.append(f'{len(self.operations)} transfer(s)')
+  if self._inside_nextcloud():parts.append(f'Nextcloud · {self.nextcloud_status().split(" · ")[0]}')
+  self.status.setText(' · '.join(parts))
  def record_location(self,path):
   p=str(path)
   if p in self.recent_locations:self.recent_locations.remove(p)
@@ -1821,6 +1842,23 @@ class Main(QMainWindow):
   worker.signals.done.connect(done); worker.signals.failed.connect(failed)
   self.status.setText(label); self._start_worker(self.threadpool,worker,('done','failed')); return worker
 
+ def update_local_watch(self):
+  watcher=getattr(self,'local_watcher',None)
+  if watcher is None:return
+  paths=[]
+  for pane in (getattr(self,'pane1',None),getattr(self,'pane2',None)):
+   if pane is None or pane.is_remote() or not pane.isVisible():continue
+   path=Path(pane.current)
+   if path.is_dir() and not path_is_mounted(path):paths.append(path)
+  watcher.set_paths(paths)
+ def _local_directory_changed(self,path):
+  for pane in (getattr(self,'pane1',None),getattr(self,'pane2',None)):
+   if pane is None or pane.is_remote():continue
+   try:
+    if os.path.normpath(str(pane.current))==os.path.normpath(str(path)):
+     pane._apply_root(pane.current); self.invalidate_quicklook()
+   except Exception:pass
+  self.update_status()
  def _path_endpoint_meta(self,path):
   p=os.path.normpath(os.path.abspath(os.path.expanduser(str(path))))
   hit=self._remote_definition_for_path(Path(p))
@@ -2112,12 +2150,11 @@ class Main(QMainWindow):
   if len(s)<2:return self.err('Select at least two items.')
   pattern,ok=QInputDialog.getText(self,'Bulk rename','Pattern ({name}, {n}, {ext}):',text='{name}-{n}{ext}')
   if not ok:return
-  preview=[]
-  for i,p in enumerate(s,1):preview.append((p,p.with_name(pattern.replace('{name}',p.stem).replace('{n}',f'{i:02d}').replace('{ext}',p.suffix))))
-  if not self.confirm('Bulk rename','Rename:\n\n'+'\n'.join(f'{a.name} → {b.name}' for a,b in preview[:20])+('\n…' if len(preview)>20 else ''),'Rename'):return
-  try:
-   for a,b in preview:a.rename(b)
-  except Exception as e:self.err(e)
+  try:preview=plan_bulk_rename(s,pattern)
+  except RenameError as error:return self.err(error)
+  if not self.confirm('Bulk rename','Rename:\n\n'+'\n'.join(f'{a.name} → {b.name}' for a,b in preview[:20])+('\n…' if len(preview)>20 else '')+'\n\nAll targets are checked before the first change.','Rename'):return
+  def done(count):self.invalidate_quicklook(); self.refresh_current(); self.status.setText(f'Renamed {count} item(s) atomically')
+  self._run_task(f'Renaming {len(preview)} item(s)…',lambda:execute_bulk_rename(preview),done,self.err)
  def _save_work_basket(self):
   self.dropzone=list(dict.fromkeys(self.dropzone)); self.s.setValue('work_basket',self.dropzone); self.build_sidebar()
  def add_dropzone(self,items=None):

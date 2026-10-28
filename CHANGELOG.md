@@ -9,6 +9,9 @@
 
 ## Unreleased
 
+- Added debounced local-directory auto-refresh, cached semantic icons,
+  accessible pane/status names, a richer status line, and atomic bulk rename
+  preflight with rollback-safe staging.
 - Isolated Nextcloud OCS access in a tested client and added multi-item public
   links with permissions, expiry, password, link removal and explicit
   local-only/unknown sync status.

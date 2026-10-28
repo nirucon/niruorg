@@ -50,6 +50,8 @@ TESTS = [
     ('theme-058-test.py', False, 8),
     ('theme-watcher-059-test.py', True, 8),
     ('nextcloud-060-test.py', False, 8),
+    ('local-watcher-061-test.py', True, 8),
+    ('bulk-rename-062-test.py', False, 8),
     ('release-package-055-test.py', False, 0),
     ('active-pane-ux-055-test.py', False, 0),
     ('milestone-010-test.py', False, 0),

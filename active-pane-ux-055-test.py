@@ -8,7 +8,7 @@ for needle in [
  "return f'Move to {self.other_side()} pane…'",
  "('● ' if active else '  ')+base",
  "pane.update_breadcrumbs()",
- "capitalize()} active · ",
+ "parts.append(f'{self.pane_side(self.active).capitalize()} active')",
  "self.copy_other_action.setText(self.copy_other_label())",
 ]:
  assert needle in s, needle
