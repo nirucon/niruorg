@@ -2,13 +2,15 @@
 import os,sys,shutil,subprocess,mimetypes,zipfile,tarfile,stat,json,urllib.request,urllib.parse,base64,shlex,socket,tempfile,time,re,hashlib,uuid,xml.etree.ElementTree as ET
 from pathlib import Path
 from PySide6.QtCore import QPointF,Qt,QDir,QUrl,QSettings,QModelIndex,QEvent,QSortFilterProxyModel,QRegularExpression,QSize,QFile,QTimer,QRunnable,QThreadPool,Signal,QObject,QProcess,QMimeData
-from PySide6.QtGui import QAction,QKeySequence,QDesktopServices,QPixmap,QIcon,QShortcut,QColor,QPainter,QPen,QBrush,QPolygonF,QCursor,QDrag
+from PySide6.QtGui import QAction,QKeySequence,QDesktopServices,QImage,QPixmap,QIcon,QShortcut,QColor,QPainter,QPen,QBrush,QPolygonF,QCursor,QDrag
 from PySide6.QtWidgets import *
 from PySide6.QtWidgets import QFileIconProvider
 try:
  from .transfer_safety import TransferSafetyError,verified_partial_offset,guard_transfer_locations
+ from .utils.workers import TaskWorker
 except ImportError:  # Direct execution via installer's app.py launcher
  from transfer_safety import TransferSafetyError,verified_partial_offset,guard_transfer_locations
+ from utils.workers import TaskWorker
 APP='NIRUORG'; VERSION='0.4.0'
 THEMES={
  'Niru Noir':{'bg':'#090909','fg':'#ededed','muted':'#858585','panel':'#141414','surface':'#1b1b1b','border':'#292929','accent':'#bdbdbd','accentfg':'#090909','sel':'#333333','danger':'#d56b6b'},
@@ -817,7 +819,7 @@ class FilePane(QWidget):
   self._apply_root(self.current); self.path.setText(str(self.current)); self.location_stack.setCurrentWidget(self.crumb); self.update_breadcrumbs(); self.filter.clear(); self.view.clearSelection(); self.view.setCurrentIndex(QModelIndex())
   if push:
    self.history=self.history[:self.hist+1]; self.history.append(str(self.current)); self.hist=len(self.history)-1
-  self.owner.set_active(self); self.owner.record_location(self.current); self._sync_tab(); self.owner.update_status()
+  self.owner.set_active(self); self.owner.record_location(self.current); self._sync_tab(); self.owner.invalidate_quicklook(); self.owner.update_status()
  def go(self,path,push=True,leave_remote=False):
   p=Path(os.path.abspath(os.path.expanduser(str(path))))
   remote=self.owner._remote_definition_for_path(p)
@@ -1055,27 +1057,53 @@ class Main(QMainWindow):
  def build_quicklook(self):
   self.quickdock=QDockWidget('Quick Look',self); self.quickdock.setObjectName('quicklook'); self.quickdock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea|Qt.DockWidgetArea.LeftDockWidgetArea); self.quickdock.setMinimumWidth(280)
   box=QWidget(); lay=QVBoxLayout(box); lay.setContentsMargins(14,14,14,14); self.quick_image=QLabel(); self.quick_image.setAlignment(Qt.AlignmentFlag.AlignCenter); self.quick_image.setMinimumHeight(120); self.quick_image.setMaximumHeight(260); self.quick_name=QLabel('No selection'); self.quick_name.setWordWrap(True); self.quick_meta=QLabel(''); self.quick_meta.setWordWrap(True); self.quick_meta.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); lay.addWidget(self.quick_image); lay.addWidget(self.quick_name); lay.addWidget(self.quick_meta); lay.addStretch(1); self.quickdock.setWidget(box); self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,self.quickdock); self.quickdock.hide(); self.quickdock.visibilityChanged.connect(lambda *_:self.update_quicklook())
+  self._quicklook_cache={}; self._quicklook_generation=0; self._quicklook_timer=QTimer(self); self._quicklook_timer.setSingleShot(True); self._quicklook_timer.timeout.connect(self._begin_quicklook)
  def toggle_quicklook(self):
   self.quicklook_requested=not self.quicklook_requested; self.quickdock.setVisible(self.quicklook_requested); self.update_quicklook()
+ def invalidate_quicklook(self,path=None):
+  cache=getattr(self,'_quicklook_cache',None)
+  if cache is None:return
+  if path is None:cache.clear()
+  else:cache.pop(str(path),None)
  def update_quicklook(self):
   if not hasattr(self,'quickdock') or not getattr(self,'quicklook_requested',False):return
-  sel=self.selected(); self.quick_image.clear()
-  if len(sel)!=1:self.quick_name.setText('No selection' if not sel else f'{len(sel)} items selected'); self.quick_meta.setText(''); return
-  p=sel[0]; self.quick_name.setText(p.name or str(p))
-  try:
-   st=p.lstat(); mime=mimetypes.guess_type(p.name)[0] or ('Folder' if p.is_dir() else 'File'); lines=[str(p),f'Type: {mime}',f'Size: {"—" if p.is_dir() else human(st.st_size)}',f'Modified: {self.format_dt(st.st_mtime)}',f'Permissions: {stat.filemode(st.st_mode)}']
-   if mime.startswith('image/') and st.st_size < 80*1024*1024:
-    pix=QPixmap(str(p))
-    if not pix.isNull():self.quick_image.setPixmap(pix.scaled(250,220,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.FastTransformation)); lines.append(f'Image: {pix.width()} × {pix.height()}')
-   elif mime.startswith(('audio/','video/')):
-    mi=self.media_info(p)
-    if mi:lines.append(mi)
-   elif p.is_file() and st.st_size <= 256*1024 and (mime.startswith('text/') or p.suffix.lower() in ('.md','.py','.js','.ts','.json','.toml','.yaml','.yml','.conf','.ini')):
-    try:
-     text=p.read_text(errors='replace')[:1200].strip(); lines.append('\n'+text)
-    except:pass
-   self.quick_meta.setText('\n'.join(lines))
-  except Exception as e:self.quick_meta.setText(str(e))
+  self._quicklook_generation+=1; sel=self.selected(); self.quick_image.clear()
+  if len(sel)!=1:self.quick_name.setText('No selection' if not sel else f'{len(sel)} items selected'); self.quick_meta.setText(''); self._quicklook_timer.stop(); return
+  self.quick_name.setText(sel[0].name or str(sel[0])); self.quick_meta.setText('Loading…'); self._quicklook_timer.start(160)
+ def _begin_quicklook(self):
+  if not getattr(self,'quicklook_requested',False):return
+  sel=self.selected()
+  if len(sel)!=1:return
+  p=sel[0]; key=str(p); generation=self._quicklook_generation
+  cached=self._quicklook_cache.get(key)
+  if cached is not None:self._apply_quicklook(cached); return
+  worker=TaskWorker(self._quicklook_payload,p)
+  def done(result):
+   if generation!=self._quicklook_generation:return
+   self._quicklook_cache[key]=result; self._apply_quicklook(result)
+  def failed(error):
+   if generation==self._quicklook_generation:self.quick_meta.setText(str(error))
+  worker.signals.done.connect(done); worker.signals.failed.connect(failed); self._start_worker(self.threadpool,worker,('done','failed'))
+ def _quicklook_payload(self,p):
+  st=p.lstat(); mime=mimetypes.guess_type(p.name)[0] or ('Folder' if p.is_dir() else 'File')
+  result={'path':str(p),'name':p.name or str(p),'mime':mime,'size':st.st_size,'mtime':st.st_mtime,'mode':st.st_mode,'dir':p.is_dir()}
+  if mime.startswith('image/') and not result['dir'] and st.st_size < 80*1024*1024:
+   image=QImage(str(p))
+   if not image.isNull():result['image']=image
+  elif mime.startswith(('audio/','video/')):
+   result['media']=self.media_info(p)
+  elif not result['dir'] and st.st_size <= 256*1024 and (mime.startswith('text/') or p.suffix.lower() in ('.md','.py','.js','.ts','.json','.toml','.yaml','.yml','.conf','.ini')):
+   try:result['text']=p.read_text(errors='replace')[:1200].strip()
+   except Exception:pass
+  return result
+ def _apply_quicklook(self,result):
+  lines=[result['path'],f'Type: {result["mime"]}',f'Size: {"—" if result["dir"] else human(result["size"])}',f'Modified: {self.format_dt(result["mtime"])}',f'Permissions: {stat.filemode(result["mode"])}']
+  image=result.get('image')
+  if image is not None and not image.isNull():
+   self.quick_image.setPixmap(QPixmap.fromImage(image).scaled(250,220,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.FastTransformation)); lines.append(f'Image: {image.width()} × {image.height()}')
+  if result.get('media'):lines.append(result['media'])
+  if result.get('text'):lines.append('\n'+result['text'])
+  self.quick_name.setText(result['name']); self.quick_meta.setText('\n'.join(lines))
  def save_settings(self):
   for k,v in [('theme',self.theme),('terminal',self.terminal),('shell',self.shell),('confirm_delete',self.confirm_delete),('density',self.density),('date_format',self.date_format),('restore_session',self.restore_session),('audio_player',self.audio_player)]:self.s.setValue(k,v)
  def palette(self):
@@ -1220,7 +1248,7 @@ class Main(QMainWindow):
  def show_about(self):
   self.info_dialog('About NIRUORG',f'<b>NIRUORG {VERSION}</b><br><br>Minimal but powerful file organizer for Linux.<br>Fast local and remote file management with a keyboard-first workflow and full mouse support.<br><br>Created by Nicklas Rudolfsson.')
  def refresh_current(self):
-  self.active.model.setRootPath(''); self.active.model.setRootPath(str(self.active.current)); self.active.go(self.active.current,False); self.update_status()
+  self.invalidate_quicklook(); self.active.model.setRootPath(''); self.active.model.setRootPath(str(self.active.current)); self.active.go(self.active.current,False); self.update_status()
  def escape_action(self):
   if self.active.filter.hasFocus() or self.active.filter.text():self.active.filter.clear(); self.active.view.setFocus(); return
   self.active.view.clearSelection(); self.update_status()
@@ -1678,27 +1706,41 @@ class Main(QMainWindow):
    st=p.lstat(); typ='Directory' if p.is_dir() else (mimetypes.guess_type(p.name)[0] or 'File'); size='—' if p.is_dir() else human(st.st_size); target=f'\nTarget: {p.resolve()}' if p.is_symlink() else ''
    self.info('Properties',f'{p.name}\n\nType: {typ}\nSize: {size}\nPermissions: {stat.filemode(st.st_mode)} ({oct(st.st_mode & 0o777)})\nOwner UID:GID: {st.st_uid}:{st.st_gid}\nModified: {self.format_dt(st.st_mtime)}\nPath: {p}{target}')
   except Exception as e:self.err(e)
+ def _preview_payload(self,p):
+  st=p.lstat(); mime=mimetypes.guess_type(p.name)[0] or ''
+  result={'path':str(p),'name':p.name,'mime':mime,'size':st.st_size,'mode':st.st_mode,'dir':p.is_dir()}
+  if p.is_file() and mime.startswith('image/'):
+   image=QImage(str(p))
+   if not image.isNull():result['image']=image
+  elif p.is_file() and st.st_size<3_000_000 and (mime.startswith('text/') or mime in ('application/json','application/xml','application/javascript') or p.suffix.lower() in ('.md','.py','.js','.ts','.css','.toml','.yaml','.yml','.sh','.fish')):
+   result['text']=p.read_text(errors='replace')
+  elif p.is_file() and (mime.startswith('audio/') or mime.startswith('video/')):
+   result['media']=self.media_info(p)
+  elif p.is_file() and (zipfile.is_zipfile(p) or tarfile.is_tarfile(p)):
+   names=zipfile.ZipFile(p).namelist() if zipfile.is_zipfile(p) else tarfile.open(p).getnames(); result['archive']='\n'.join(names[:1000])+('\n…' if len(names)>1000 else '')
+  return result
  def preview(self):
   s=self.selected()
   if len(s)!=1:return
-  p=s[0]; d=NiruDialog(self); d.setWindowTitle(f'Inspect — {p.name}'); d.resize(800,650); l=QVBoxLayout(d); l.addWidget(QLabel(f'<b>{p.name}</b>'))
-  mime=mimetypes.guess_type(p.name)[0] or ''
-  if p.is_file() and mime.startswith('image/'):
-   pix=QPixmap(str(p)); lab=QLabel(); lab.setAlignment(Qt.AlignmentFlag.AlignCenter); lab.setPixmap(pix.scaled(740,520,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)); l.addWidget(lab,1); l.addWidget(QLabel(f'{pix.width()} × {pix.height()} · {human(p.stat().st_size)} · {mime}'))
-  elif p.is_file() and p.stat().st_size<3_000_000 and (mime.startswith('text/') or mime in ('application/json','application/xml','application/javascript') or p.suffix.lower() in ('.md','.py','.js','.ts','.css','.toml','.yaml','.yml','.sh','.fish')):
-   e=QPlainTextEdit(); e.setReadOnly(True); e.setPlainText(p.read_text(errors='replace')); l.addWidget(e,1)
-  elif p.is_file() and (mime.startswith('audio/') or mime.startswith('video/')):
-   info=self.media_info(p); lab=QLabel((info or 'Media file')+f'\n\nSize: {human(p.stat().st_size)}\nPath: {p}'); lab.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); l.addWidget(lab); play=QPushButton('Play with MPV'); play.clicked.connect(lambda:run_detached([shutil.which('mpv'),str(p)]) if shutil.which('mpv') else self.err('MPV is not installed.')); l.addWidget(play); l.addStretch()
-  elif p.is_file() and (zipfile.is_zipfile(p) or tarfile.is_tarfile(p)):
-   e=QPlainTextEdit(); e.setReadOnly(True)
-   try:names=zipfile.ZipFile(p).namelist() if zipfile.is_zipfile(p) else tarfile.open(p).getnames(); e.setPlainText('\n'.join(names[:1000])+('\n…' if len(names)>1000 else ''))
-   except Exception as x:e.setPlainText(str(x))
-   l.addWidget(e,1)
-  else:
-   try:st=p.lstat(); info=f'Type: {"Directory" if p.is_dir() else mime or "File"}\nSize: {"—" if p.is_dir() else human(st.st_size)}\nPermissions: {stat.filemode(st.st_mode)}\nPath: {p}'
-   except Exception as x:info=str(x)
-   lab=QLabel(info); lab.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); l.addWidget(lab); l.addStretch()
-  d.exec()
+  p=s[0]; d=NiruDialog(self); d.setWindowTitle(f'Inspect — {p.name}'); d.resize(800,650); l=QVBoxLayout(d); l.addWidget(QLabel(f'<b>{p.name}</b>')); body=QWidget(); bl=QVBoxLayout(body); bl.setContentsMargins(0,0,0,0); l.addWidget(body,1); status=QLabel('Loading…'); status.setObjectName('muted'); l.addWidget(status)
+  def fill(result):
+   while bl.count():
+    item=bl.takeAt(0); widget=item.widget()
+    if widget:widget.deleteLater()
+   status.setText(f'{human(result["size"])} · {result["mime"] or ("Folder" if result["dir"] else "File")} · {stat.filemode(result["mode"])}')
+   if result.get('image') is not None:
+    pix=QPixmap.fromImage(result['image']); lab=QLabel(); lab.setAlignment(Qt.AlignmentFlag.AlignCenter); lab.setPixmap(pix.scaled(740,520,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation)); bl.addWidget(lab,1); bl.addWidget(QLabel(f'{pix.width()} × {pix.height()} · {human(result["size"])} · {result["mime"]}'))
+   elif 'text' in result:
+    e=QPlainTextEdit(); e.setReadOnly(True); e.setPlainText(result['text']); bl.addWidget(e,1)
+   elif result.get('media') is not None:
+    lab=QLabel((result['media'] or 'Media file')+f'\n\nSize: {human(result["size"])}\nPath: {result["path"]}'); lab.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); bl.addWidget(lab); play=QPushButton('Play with MPV'); play.clicked.connect(lambda:run_detached([shutil.which('mpv'),str(p)]) if shutil.which('mpv') else self.err('MPV is not installed.')); bl.addWidget(play); bl.addStretch()
+   elif 'archive' in result:
+    e=QPlainTextEdit(); e.setReadOnly(True); e.setPlainText(result['archive']); bl.addWidget(e,1)
+   else:
+    info=f'Type: {"Directory" if result["dir"] else result["mime"] or "File"}\nSize: {"—" if result["dir"] else human(result["size"])}\nPermissions: {stat.filemode(result["mode"])}\nPath: {result["path"]}'
+    lab=QLabel(info); lab.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse); bl.addWidget(lab); bl.addStretch()
+  def failed(error):status.setText(str(error))
+  worker=TaskWorker(self._preview_payload,p); worker.signals.done.connect(fill); worker.signals.failed.connect(failed); self._start_worker(self.threadpool,worker,('done','failed')); d.exec()
  def _remember_split_sizes(self,*_):
   if self.pane2.isVisible():
    sizes=self.split.sizes()
@@ -1745,6 +1787,21 @@ class Main(QMainWindow):
   if not connected:
    raise RuntimeError(f'Worker {type(worker).__name__} has no terminal signal')
   pool.start(worker); return worker
+
+ def _run_task(self,label,fn,on_done=None,on_failed=None):
+  worker=TaskWorker(fn)
+  def done(result):
+   if not self._accept_worker_results:return
+   try:
+    if on_done:on_done(result)
+    else:self.status.setText(label+' · done')
+   except Exception as error:self.err(error)
+  def failed(error):
+   if not self._accept_worker_results:return
+   if on_failed:on_failed(error)
+   else:self.err(f'{label} failed: {error}')
+  worker.signals.done.connect(done); worker.signals.failed.connect(failed)
+  self.status.setText(label); self._start_worker(self.threadpool,worker,('done','failed')); return worker
 
  def _path_endpoint_meta(self,path):
   p=os.path.normpath(os.path.abspath(os.path.expanduser(str(path))))
@@ -2007,29 +2064,31 @@ class Main(QMainWindow):
    elif shutil.which('7z'):subprocess.Popen(['7z','x',str(p),f'-o{out}'])
    else:raise RuntimeError('Unsupported archive or 7z is not installed.')
   except Exception as e:self.err(e)
+ def _compress_to_zip(self,items,dest):
+  with zipfile.ZipFile(dest,'w',zipfile.ZIP_DEFLATED) as z:
+   for p in items:
+    if p.is_dir():
+     for f in p.rglob('*'):
+      if f.is_file():z.write(f,f.relative_to(p.parent))
+    else:z.write(p,p.name)
+  return len(items)
  def compress(self):
   s=self.selected()
   if not s:return
   dest,_=QFileDialog.getSaveFileName(self,'Create ZIP',str(self.current_dir()/'archive.zip'),'ZIP (*.zip)')
   if not dest:return
-  try:
-   with zipfile.ZipFile(dest,'w',zipfile.ZIP_DEFLATED) as z:
-    for p in s:
-     if p.is_dir():
-      for f in p.rglob('*'):
-       if f.is_file():z.write(f,f.relative_to(p.parent))
-     else:z.write(p,p.name)
-  except Exception as e:self.err(e)
+  def done(count):self.status.setText(f'Created ZIP · {count} item(s) · {Path(dest).name}')
+  self._run_task(f'Compressing {len(s)} item(s)…',lambda:self._compress_to_zip(list(s),Path(dest)),done,self.err)
+ def _file_sha256(self,p):
+  h=hashlib.sha256()
+  with p.open('rb') as f:
+   for b in iter(lambda:f.read(1024*1024),b''):h.update(b)
+  return h.hexdigest()
  def checksum(self):
-  import hashlib
   s=self.selected()
   if len(s)!=1 or not s[0].is_file():return
-  try:
-   h=hashlib.sha256()
-   with s[0].open('rb') as f:
-    for b in iter(lambda:f.read(1024*1024),b''):h.update(b)
-   QApplication.clipboard().setText(h.hexdigest()); self.info('SHA-256',h.hexdigest()+'\n\nCopied to clipboard.')
-  except Exception as e:self.err(e)
+  def done(digest):QApplication.clipboard().setText(digest); self.info('SHA-256',digest+'\n\nCopied to clipboard.')
+  self._run_task('Calculating SHA-256…',lambda:self._file_sha256(s[0]),done,self.err)
  def bulk_rename(self):
   s=self.selected()
   if len(s)<2:return self.err('Select at least two items.')
@@ -3005,23 +3064,26 @@ class Main(QMainWindow):
    if base=='kitty':return run_detached([self.terminal,'--hold',self.shell,'-lc',cmd])
    return run_detached([self.terminal,'-e',self.shell,'-lc',cmd])
   return False
- def open_cloud(self,name,target_pane=None):
-  target_pane=target_pane or self.active
+ def _mount_cloud_task(self,name,mp):
   exe=shutil.which('rclone')
-  if not exe:return self.err('rclone is not installed. Open Cloud services for installation information.')
-  if name not in self._rclone_remotes():return self.err(f'Cloud remote not found: {name}')
-  mp=self._cloud_mountpoint(name); mp.mkdir(parents=True,exist_ok=True)
+  if not exe:raise RuntimeError('rclone is not installed. Open Cloud services for installation information.')
+  if name not in self._rclone_remotes():raise RuntimeError(f'Cloud remote not found: {name}')
   created_here=not path_is_mounted(mp)
   if created_here:
    r=subprocess.run([exe,'mount',name+':',str(mp),'--vfs-cache-mode','writes','--daemon'],capture_output=True,text=True,timeout=20)
-   if r.returncode:return self.err(r.stderr.strip() or f'Could not mount {name}. Ensure FUSE is installed and the cloud login is valid.')
-   for _ in range(20):
-    QApplication.processEvents()
+   if r.returncode:raise RuntimeError(r.stderr.strip() or f'Could not mount {name}. Ensure FUSE is installed and the cloud login is valid.')
+   for _ in range(50):
     if path_is_mounted(mp):break
-    import time; time.sleep(.1)
-  if not path_is_mounted(mp):return self.err(f'{name} did not become available at {mp}.')
-  if created_here:self._claim_mount(mp,'cloud',name)
-  self.build_sidebar(); target_pane.bind_remote(name,'CLOUD',mp,'/'); target_pane.go(str(mp)); self.set_active(target_pane); self.status.setText(f'Cloud mounted · {name}')
+    time.sleep(.1)
+  if not path_is_mounted(mp):raise RuntimeError(f'{name} did not become available at {mp}.')
+  return created_here
+ def open_cloud(self,name,target_pane=None):
+  target_pane=target_pane or self.active
+  mp=self._cloud_mountpoint(name); mp.mkdir(parents=True,exist_ok=True)
+  def done(created_here):
+   if created_here:self._claim_mount(mp,'cloud',name)
+   self.build_sidebar(); target_pane.bind_remote(name,'CLOUD',mp,'/'); target_pane.go(str(mp)); self.set_active(target_pane); self.status.setText(f'Cloud mounted · {name}')
+  self._run_task(f'Mounting {name}…',lambda:self._mount_cloud_task(name,mp),done,self.err)
  def unmount_cloud(self,name):
   mp=self._cloud_mountpoint(name)
   if not path_is_mounted(mp):return
@@ -3096,17 +3158,18 @@ class Main(QMainWindow):
  def _inside_nextcloud(self):
   try:return self.current_dir().resolve().is_relative_to((Path.home()/'Nextcloud').resolve())
   except:return False
+ def _nextcloud_share_url(self,p):
+  root=Path.home()/'Nextcloud'
+  try:rel='/' + str(p.resolve().relative_to(root.resolve()))
+  except Exception:raise RuntimeError('The selected item is not inside ~/Nextcloud.')
+  res=self._nextcloud_request('/ocs/v2.php/apps/files_sharing/api/v1/shares',{'path':rel,'shareType':'3','permissions':'1','format':'json'}); data=res.get('ocs',{}).get('data',{}); url=data.get('url') if isinstance(data,dict) else None
+  if not url:raise RuntimeError(res.get('ocs',{}).get('meta',{}).get('message','Nextcloud did not return a public URL.'))
+  return url
  def nextcloud_share(self):
   s=self.selected()
   if len(s)!=1:return self.err('Select exactly one Nextcloud file or folder.')
-  root=Path.home()/'Nextcloud'; p=s[0]
-  try:rel='/' + str(p.resolve().relative_to(root.resolve()))
-  except:return self.err('The selected item is not inside ~/Nextcloud.')
-  try:
-   res=self._nextcloud_request('/ocs/v2.php/apps/files_sharing/api/v1/shares',{'path':rel,'shareType':'3','permissions':'1','format':'json'}); data=res.get('ocs',{}).get('data',{}); url=data.get('url') if isinstance(data,dict) else None
-   if not url:raise RuntimeError(res.get('ocs',{}).get('meta',{}).get('message','Nextcloud did not return a public URL.'))
-   QApplication.clipboard().setText(url); self.info('Nextcloud public link',url+'\n\nCopied to clipboard.')
-  except Exception as e:self.err(e)
+  def done(url):QApplication.clipboard().setText(url); self.info('Nextcloud public link',url+'\n\nCopied to clipboard.')
+  self._run_task('Creating Nextcloud public link…',lambda:self._nextcloud_share_url(s[0]),done,self.err)
  def media_info(self,p):
   exe=shutil.which('ffprobe')
   if not exe:return ''

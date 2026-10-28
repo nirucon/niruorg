@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- Moved Quick Look, inspector preview, ZIP creation, checksums, Nextcloud sharing and cloud mounting onto the retained background-task worker.
+- Added a Qt regression proving that a slow task emits its result without blocking timer processing.
 - Fixed split-view pane sizes not being saved or restored because the code referenced `self.settings` instead of the application's `self.s` settings object.
 - Added a real splitter regression that opens, resizes, closes and reopens the right pane.
 
