@@ -9,6 +9,9 @@
 
 ## Unreleased
 
+- Added Follow NIRUX using appearance.toml, the generated kitty palette and
+  contrast-safe derived colours, with live QFileSystemWatcher updates after
+  atomic theme replacement.
 - Moved Quick Look, inspector preview, ZIP creation, checksums, Nextcloud sharing and cloud mounting onto the retained background-task worker.
 - Added a Qt regression proving that a slow task emits its result without blocking timer processing.
 - Fixed split-view pane sizes not being saved or restored because the code referenced `self.settings` instead of the application's `self.s` settings object.

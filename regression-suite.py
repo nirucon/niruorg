@@ -47,6 +47,8 @@ TESTS = [
     ('split-remote-polish-053-test.py', False, 0),
     ('split-view-056-test.py', True, 8),
     ('async-io-057-test.py', True, 8),
+    ('theme-058-test.py', False, 8),
+    ('theme-watcher-059-test.py', True, 8),
     ('release-package-055-test.py', False, 0),
     ('active-pane-ux-055-test.py', False, 0),
     ('milestone-010-test.py', False, 0),
