@@ -49,6 +49,7 @@ TESTS = [
     ('async-io-057-test.py', True, 8),
     ('theme-058-test.py', False, 8),
     ('theme-watcher-059-test.py', True, 8),
+    ('filezilla-import-064-test.py', False, 0),
     ('nextcloud-060-test.py', False, 8),
     ('local-watcher-061-test.py', True, 8),
     ('bulk-rename-062-test.py', False, 8),

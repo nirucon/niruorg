@@ -1,6 +1,18 @@
-# NIRUORG 0.5.0 — Responsiveness, NIRUX and Nextcloud
+# NIRUORG 0.5.1 — Connections, sidebar and import reliability
 
-A focused quality release built from 0.4.0.
+A focused quality release built from 0.5.0.
+
+- Fixed FileZilla XML import: the application-wide event filter no longer aborts
+  the native file picker while Qt is destroying a dialog layout.
+- Sidebar standard folders are now derived from real XDG locations and only
+  existing directories are shown; there is no empty Desktop placeholder.
+- Cloud entries are shown only when they exist or are configured.
+- Server definitions are stored in `~/Nextcloud/Backup/niruorg/servers.json` when
+  that synced Backup folder exists, with a per-user fallback at
+  `~/.config/niruorg/servers.json`. Passwords remain in Secret Service.
+- Added FileZilla import, sidebar and portable-server-store regression coverage.
+
+## 0.5.0 — Responsiveness, NIRUX and Nextcloud
 
 - Follow NIRUX in real time using appearance.toml and the generated kitty palette, with contrast-safe derived colours and atomic file replacement handling.
 - Quick Look, preview, ZIP creation, checksum and Nextcloud/cloud operations now use retained background workers; Quick Look is debounced and cached.

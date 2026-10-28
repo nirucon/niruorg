@@ -7,6 +7,21 @@
 
 # Changelog
 
+## 0.5.1 — 2026-10-28
+
+- Fixed FileZilla XML import by making the global Qt event filter fail open when
+  a dialog/layout has already been destroyed; the native file picker no longer
+  crashes before parsing the selected file.
+- Build the sidebar's Home section from existing XDG standard directories only;
+  empty Desktop/Public/Templates placeholders are no longer shown.
+- Show Nextcloud and cloud remotes only when they actually exist or are
+  configured.
+- Persist connection definitions in a portable
+  `~/Nextcloud/Backup/niruorg/servers.json` when the synced Backup folder exists,
+  with `~/.config/niruorg/servers.json` as the fallback. Secrets remain in the
+  system Secret Service.
+- Added FileZilla, sidebar and portable-store regression tests.
+
 ## 0.5.0 — 2026-10-28
 
 - Extracted shared path, formatting and error-logging utilities, with central

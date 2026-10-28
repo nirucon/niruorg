@@ -11,5 +11,5 @@ assert 'target_pane.bind_remote' in block
 assert 'target_pane.go(mp)' in block
 assert 'target_pane.is_remote()' in block
 assert 'target_pane._path_inside_remote(target_pane.current)' in block
-assert "VERSION='0.5.0'" in s
-print('0.5.0 remote pane binding regression OK · async mount cannot fall back to local pane')
+assert "VERSION='0.5.1'" in s
+print('0.5.1 remote pane binding regression OK · async mount cannot fall back to local pane')

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os,sys,shutil,subprocess,mimetypes,zipfile,tarfile,stat,json,urllib.request,urllib.parse,base64,shlex,socket,tempfile,time,re,hashlib,uuid,xml.etree.ElementTree as ET
 from pathlib import Path
-from PySide6.QtCore import QPointF,Qt,QDate,QDir,QUrl,QSettings,QModelIndex,QEvent,QSortFilterProxyModel,QRegularExpression,QSize,QFile,QTimer,QRunnable,QThreadPool,Signal,QObject,QProcess,QMimeData
+from PySide6.QtCore import QPointF,Qt,QDate,QDir,QUrl,QSettings,QStandardPaths,QModelIndex,QEvent,QSortFilterProxyModel,QRegularExpression,QSize,QFile,QTimer,QRunnable,QThreadPool,Signal,QObject,QProcess,QMimeData
 from PySide6.QtGui import QAction,QKeySequence,QDesktopServices,QImage,QPixmap,QIcon,QShortcut,QColor,QPainter,QPen,QBrush,QPolygonF,QCursor,QDrag
 from PySide6.QtWidgets import *
 from PySide6.QtWidgets import QFileIconProvider
@@ -27,7 +27,7 @@ except ImportError:  # Direct execution via installer's app.py launcher
  from core.paths import mounted_paths,path_is_mounted,lexical_under
  from utils.format import human
  from utils.logging import log_error
-APP='NIRUORG'; VERSION='0.5.0'
+APP='NIRUORG'; VERSION='0.5.1'
 THEMES={
  'Niru Noir':{'bg':'#090909','fg':'#ededed','muted':'#858585','panel':'#141414','surface':'#1b1b1b','border':'#292929','accent':'#bdbdbd','accentfg':'#090909','sel':'#333333','danger':'#d56b6b'},
  'C. Larsson':{'bg':'#eee5d1','fg':'#29251f','muted':'#776d5e','panel':'#e2d3b7','surface':'#e8dcc5','border':'#bbaa8d','accent':'#745c3e','accentfg':'#fffaf0','sel':'#d3c19f','danger':'#9c3d32'},
@@ -933,10 +933,25 @@ class Main(QMainWindow):
    if tip:it.setToolTip(tip)
    if kind:it.setData(Qt.ItemDataRole.UserRole+1,kind)
    self.sidebar.addItem(it)
+ def _standard_sidebar_locations(self):
+  # Home is always useful. Other entries are the user's real XDG locations,
+  # and only existing directories are shown: no empty Desktop/Public placeholders.
+  home=Path.home(); entries=[('Home',home)]; seen={str(home)}
+  locations=[('Desktop',QStandardPaths.StandardLocation.DesktopLocation),('Documents',QStandardPaths.StandardLocation.DocumentsLocation),('Downloads',QStandardPaths.StandardLocation.DownloadLocation),('Pictures',QStandardPaths.StandardLocation.PicturesLocation),('Music',QStandardPaths.StandardLocation.MusicLocation),('Videos',QStandardPaths.StandardLocation.MoviesLocation),('Public',QStandardPaths.StandardLocation.PublicShareLocation),('Templates',QStandardPaths.StandardLocation.TemplatesLocation)]
+  for label,location in locations:
+   raw=QStandardPaths.writableLocation(location)
+   if not raw:continue
+   path=Path(raw)
+   try:
+    if str(path)==str(home) or not path.is_dir():continue
+   except OSError:continue
+   if str(path) in seen:continue
+   seen.add(str(path)); entries.append((label,path))
+  return entries
  def build_sidebar(self):
   # Sidebar rendering is metadata-only. Never stat saved paths or FUSE mounts here.
   self.sidebar.clear(); dz=QListWidgetItem(f'WORK BASKET · {len(self.dropzone)}'); dz.setToolTip('Persistent working set across folders and sessions'); dz.setData(Qt.ItemDataRole.UserRole,'__dropzone__'); self.sidebar.addItem(dz)
-  for label,p in [('Home',Path.home()),('Desktop',Path.home()/'Desktop'),('Documents',Path.home()/'Documents'),('Downloads',Path.home()/'Downloads'),('Pictures',Path.home()/'Pictures'),('Music',Path.home()/'Music'),('Videos',Path.home()/'Videos')]:
+  for label,p in self._standard_sidebar_locations():
    it=QListWidgetItem(label); it.setData(Qt.ItemDataRole.UserRole,str(p)); self.sidebar.addItem(it)
   shortcuts=self._json_setting('shortcuts_json'); entries=[]
   for n,v in shortcuts.items():
@@ -1228,12 +1243,20 @@ class Main(QMainWindow):
    refresh()
   toggle.clicked.connect(tog); clear.clicked.connect(clr); copy.clicked.connect(lambda:QApplication.clipboard().setText(out.toPlainText())); refreshb.clicked.connect(refresh); refresh(); d.exec()
  def eventFilter(self,obj,event):
-  pane=self._pane_for_event_target(obj)
-  if getattr(self,'input_diag_enabled',False) and event.type() in (QEvent.Type.ShortcutOverride,QEvent.Type.KeyPress,QEvent.Type.KeyRelease):
-   self._input_diag(obj,event,pane,self._dispatch_browser_key(event.key(),event.modifiers(),pane,False) if pane is not None else None)
+  # This filter is installed on QApplication, so it sees events for widgets and
+  # layouts that are being destroyed (including native Qt file dialogs). Walking
+  # a stale wrapper or calling QMainWindow.eventFilter there raises
+  # "Internal C++ object already deleted" and previously aborted the FileZilla
+  # file picker. The filter is diagnostics-only, so failing open is correct.
+  try:
+   pane=self._pane_for_event_target(obj)
+   if getattr(self,'input_diag_enabled',False) and event.type() in (QEvent.Type.ShortcutOverride,QEvent.Type.KeyPress,QEvent.Type.KeyRelease):
+    self._input_diag(obj,event,pane,self._dispatch_browser_key(event.key(),event.modifiers(),pane,False) if pane is not None else None)
+  except (RuntimeError,ReferenceError):
+   pass
   # Do not consume browser key events here. View-owned QShortcuts are the
   # authoritative path; the application filter is diagnostics only.
-  return super().eventFilter(obj,event)
+  return False
  def keybinding_rows(self):
   return [
    ('Files','Ctrl+N','New file / folder'),('Files','Ctrl+Shift+N','New folder'),('Files','F2','Rename'),('Files','Ctrl+C','Copy'),('Files','Ctrl+X','Cut'),('Files','Ctrl+V','Paste'),('Files','Delete','Move to Trash'),('Files','Shift+Delete','Delete Permanently…'),('Files','Alt+Return','Properties'),('Files','Ctrl+A','Select all'),
@@ -2392,10 +2415,51 @@ class Main(QMainWindow):
   def op(it):
    p=Path(it.data(Qt.ItemDataRole.UserRole)); self.active.go(p.parent)
   w.itemDoubleClicked.connect(op); l.addWidget(w); d.exec()
+ def _server_store_paths(self):
+  primary=Path.home()/'Nextcloud'/'Backup'/'niruorg'/'servers.json'
+  local=Path(os.environ.get('XDG_CONFIG_HOME') or (Path.home()/'.config'))/'niruorg'/'servers.json'
+  return primary,local
+ def _server_store_path(self):
+  primary,local=self._server_store_paths()
+  # ~/Nextcloud/Backup is the user's synced master location when it exists.
+  # Otherwise the same file lives under the local per-user config directory.
+  return primary if primary.parent.parent.is_dir() else local
+ def _read_server_store(self,path):
+  try:
+   payload=json.loads(path.read_text(encoding='utf-8'))
+   data=payload.get('servers',payload) if isinstance(payload,dict) else {}
+   return {str(k):dict(v) for k,v in data.items() if isinstance(v,dict)}
+  except Exception as e:
+   log_error('server-store-read',e); return {}
+ def _load_servers(self):
+  try:local=json.loads(self.s.value('servers_json','{}') or '{}')
+  except Exception:local={}
+  primary,fallback=self._server_store_paths(); disk={}
+  if primary.exists():disk=self._read_server_store(primary)
+  if not disk and fallback.exists():disk=self._read_server_store(fallback)
+  if not disk:return local
+  # The synced file is the portable source of truth, but never discard a
+  # connection that exists only in this machine's local settings.
+  merged=dict(disk)
+  for name,cfg in local.items():merged.setdefault(name,cfg)
+  return merged
+ def _write_server_store(self,data):
+  path=self._server_store_path()
+  try:
+   path.parent.mkdir(parents=True,exist_ok=True)
+   payload={'schema':1,'servers':data}
+   tmp=path.with_name(path.name+'.tmp')
+   tmp.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+   os.chmod(tmp,0o600); os.replace(tmp,path)
+  except Exception as e:
+   log_error('server-store-write',e)
  def _json_setting(self,key):
+  if key=='servers_json':return self._load_servers()
   try:return json.loads(self.s.value(key,'{}') or '{}')
   except:return {}
- def _save_json(self,key,data):self.s.setValue(key,json.dumps(data,ensure_ascii=False))
+ def _save_json(self,key,data):
+  self.s.setValue(key,json.dumps(data,ensure_ascii=False))
+  if key=='servers_json':self._write_server_store(data)
  def manage_targets(self):
   data=self._json_setting('targets_json'); d=NiruDialog(self); d.setWindowTitle('Locations'); d.resize(620,430); l=QVBoxLayout(d); w=QListWidget()
   def refresh():
@@ -2555,9 +2619,14 @@ class Main(QMainWindow):
   def filezilla():
    candidates=[Path.home()/'.config/filezilla/sitemanager.xml',Path.home()/'.filezilla/sitemanager.xml']
    start=str(next((x for x in candidates if x.exists()),Path.home()))
-   fn,_=QFileDialog.getOpenFileName(d,'Choose FileZilla sitemanager.xml',start,'FileZilla XML (*.xml);;All files (*)')
+   fn,_=QFileDialog.getOpenFileName(d,'Choose FileZilla sitemanager.xml or export',start,'FileZilla XML (*.xml);;All files (*)')
    if fn:
-    try:load(self._filezilla_sites(fn),'FileZilla')
+    try:
+     sites=self._filezilla_sites(fn)
+     if not sites:
+      self.err('No FileZilla <Server> entries were found.\n\nChoose sitemanager.xml or a FileZilla site export, not the recent-servers-only file.')
+      return
+     load(sites,'FileZilla')
     except Exception as e:self.err('Could not read FileZilla XML.\n\n'+str(e))
   def openssh():
    fn,_=QFileDialog.getOpenFileName(d,'Choose OpenSSH config',str(Path.home()/'.ssh/config'),'SSH config (*)')
@@ -2608,7 +2677,7 @@ class Main(QMainWindow):
   rows.append(('Qt / PySide6',qVersion(),'Runtime'))
   rows.append(('Session',os.getenv('XDG_SESSION_TYPE','unknown'),os.getenv('XDG_CURRENT_DESKTOP','') or '—'))
   for label,path in self.integration_status():rows.append((label,'Available' if path else 'Optional / unavailable',str(path or '—')))
-  servers=self._json_setting('servers_json'); rows.append(('Tabs',f'{self.pane1.tabs.count()} left · {self.pane2.tabs.count()} right','Per-pane tab workspaces')); rows.append(('Resumable transfers','Available','.niruorg-part files are retained after cancellation')); rows.append(('Connections',str(len(servers)),f'{sum(1 for n in servers if path_is_mounted(Path.home()/".local/share/niruorg/mounts"/"".join(c if c.isalnum() or c in "-_ ." else "_" for c in n)))} mounted'))
+  servers=self._json_setting('servers_json'); rows.append(('Tabs',f'{self.pane1.tabs.count()} left · {self.pane2.tabs.count()} right','Per-pane tab workspaces')); rows.append(('Resumable transfers','Available','.niruorg-part files are retained after cancellation')); rows.append(('Connections',str(len(servers)),f'{sum(1 for n in servers if path_is_mounted(Path.home()/".local/share/niruorg/mounts"/"".join(c if c.isalnum() or c in "-_ ." else "_" for c in n)))} mounted')); rows.append(('Server config',str(self._server_store_path()),'Portable server definitions; passwords stay in Secret Service'))
   d=NiruDialog(self); d.setWindowTitle('System Diagnostics'); d.resize(780,560); l=QVBoxLayout(d); note=QLabel('<b>Safe diagnostic report</b><br>No passwords, tokens, private keys or Secret Service values are included.'); note.setWordWrap(True); l.addWidget(note); t=QTreeWidget(); t.setHeaderLabels(['Component','Status','Details']); t.setRootIsDecorated(False); l.addWidget(t,1)
   for a,b,c in rows:QTreeWidgetItem(t,[a,b,c])
   t.header().setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents); t.header().setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents); t.header().setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch)
@@ -3082,7 +3151,10 @@ class Main(QMainWindow):
   safe=''.join(c if c.isalnum() or c in '-_.' else '_' for c in name)
   return Path.home()/'.local/share/niruorg/cloud'/safe
  def _cloud_sidebar_entries(self):
-  out=[]; nc=Path.home()/'Nextcloud'; out.append(('Nextcloud',str(nc),f'Local Nextcloud sync · {nc}','cloud:nextcloud'))
+  # Show the local Nextcloud folder only when it actually exists. rclone remotes
+  # below are already the configured set returned by `rclone listremotes`.
+  out=[]; nc=Path.home()/'Nextcloud'
+  if nc.is_dir():out.append(('Nextcloud',str(nc),f'Local Nextcloud sync · {nc}','cloud:nextcloud'))
   mounts=mounted_paths()
   for name in self._cloud_cache:
    mp=self._cloud_mountpoint(name); mounted=path_is_mounted(mp,mounts); typ=self._cloud_types.get(name,'')
@@ -3497,6 +3569,6 @@ class Main(QMainWindow):
 def main():
  if '--version' in sys.argv:print(VERSION);return 0
  if '--self-test' in sys.argv:
-  assert human(1024)=='1.0 KB'; assert 'Nord' in THEMES; assert VERSION=='0.5.0'; assert ConnectionDiagnosticWorker; assert hasattr(Main,'undo_last'); assert hasattr(FilePane,'update_breadcrumbs'); assert hasattr(Main,'manage_servers'); assert hasattr(Main,'open_server_named'); assert hasattr(Main,'manage_workspaces'); assert hasattr(Main,'manage_targets'); assert hasattr(Main,'smart_view'); assert hasattr(Main,'operation_history'); assert hasattr(Main,'format_dt'); assert hasattr(Main,'integrations'); assert hasattr(Main,'nextcloud_share'); assert hasattr(Main,'media_info'); assert hasattr(Main,'niru_player'); assert hasattr(Main,'play_audio'); assert hasattr(Main,'storage_view'); assert hasattr(Main,'permissions_view'); assert hasattr(Main,'operation_queue'); assert hasattr(Main,'toggle_quicklook'); assert hasattr(Main,'compare_panes'); assert hasattr(Main,'jump'); assert hasattr(Main,'toggle_focus'); assert hasattr(Main,'_sidebar_section'); assert hasattr(Main,'open_workspace_named'); assert hasattr(Main,'show_keybindings'); assert hasattr(Main,'quick_create'); assert hasattr(Main,'refresh_current'); assert hasattr(Main,'input_diagnostics'); assert hasattr(FilePane,'forward'); assert hasattr(Main,'clipboard_inspector'); assert hasattr(Main,'folder_health'); assert hasattr(Main,'duplicate_finder'); assert hasattr(Main,'saved_searches'); assert hasattr(Main,'manage_niru_actions'); assert hasattr(Main,'manage_recipes'); assert hasattr(Main,'run_niru_action'); assert hasattr(Main,'run_recipe'); assert hasattr(Main,'open_with'); assert hasattr(Main,'file_associations'); assert hasattr(Main,'context_lens'); assert hasattr(Main,'closeEvent'); assert hasattr(Main,'manage_clouds'); assert hasattr(Main,'open_cloud'); assert hasattr(Main,'close_split'); assert hasattr(SearchWorker,'cancel'); assert hasattr(Main,'all_actions'); assert hasattr(Main,'_save_work_basket'); assert hasattr(Main,'path_actions'); assert callable(safe_extract_zip); assert callable(safe_extract_tar); print('NIRUORG self-test OK'); return 0
+  assert human(1024)=='1.0 KB'; assert 'Nord' in THEMES; assert VERSION=='0.5.1'; assert ConnectionDiagnosticWorker; assert hasattr(Main,'undo_last'); assert hasattr(FilePane,'update_breadcrumbs'); assert hasattr(Main,'manage_servers'); assert hasattr(Main,'open_server_named'); assert hasattr(Main,'manage_workspaces'); assert hasattr(Main,'manage_targets'); assert hasattr(Main,'smart_view'); assert hasattr(Main,'operation_history'); assert hasattr(Main,'format_dt'); assert hasattr(Main,'integrations'); assert hasattr(Main,'nextcloud_share'); assert hasattr(Main,'media_info'); assert hasattr(Main,'niru_player'); assert hasattr(Main,'play_audio'); assert hasattr(Main,'storage_view'); assert hasattr(Main,'permissions_view'); assert hasattr(Main,'operation_queue'); assert hasattr(Main,'toggle_quicklook'); assert hasattr(Main,'compare_panes'); assert hasattr(Main,'jump'); assert hasattr(Main,'toggle_focus'); assert hasattr(Main,'_sidebar_section'); assert hasattr(Main,'open_workspace_named'); assert hasattr(Main,'show_keybindings'); assert hasattr(Main,'quick_create'); assert hasattr(Main,'refresh_current'); assert hasattr(Main,'input_diagnostics'); assert hasattr(FilePane,'forward'); assert hasattr(Main,'clipboard_inspector'); assert hasattr(Main,'folder_health'); assert hasattr(Main,'duplicate_finder'); assert hasattr(Main,'saved_searches'); assert hasattr(Main,'manage_niru_actions'); assert hasattr(Main,'manage_recipes'); assert hasattr(Main,'run_niru_action'); assert hasattr(Main,'run_recipe'); assert hasattr(Main,'open_with'); assert hasattr(Main,'file_associations'); assert hasattr(Main,'context_lens'); assert hasattr(Main,'closeEvent'); assert hasattr(Main,'manage_clouds'); assert hasattr(Main,'open_cloud'); assert hasattr(Main,'close_split'); assert hasattr(SearchWorker,'cancel'); assert hasattr(Main,'all_actions'); assert hasattr(Main,'_save_work_basket'); assert hasattr(Main,'path_actions'); assert callable(safe_extract_zip); assert callable(safe_extract_tar); print('NIRUORG self-test OK'); return 0
  app=QApplication(sys.argv); app.setApplicationName(APP); app.setOrganizationName('NIRU'); app.setDesktopFileName('niruorg'); w=Main(sys.argv[1] if len(sys.argv)>1 else None); w.show(); w.startup_trace.mark('show called'); return app.exec()
 if __name__=='__main__':raise SystemExit(main())

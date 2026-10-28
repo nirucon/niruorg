@@ -1,6 +1,6 @@
 # NIRUORG
 
-**NIRUORG 0.5.0** is a personal, keyboard-friendly two-pane file organizer for Linux, written in Python and PySide6. It is developed primarily for an **Omarchy / Arch Linux + Hyprland + Kitty + Fish** desktop and is also intended to work on Debian-based Linux systems.
+**NIRUORG 0.5.1** is a personal, keyboard-friendly two-pane file organizer for Linux, written in Python and PySide6. It is developed primarily for an **Omarchy / Arch Linux + Hyprland + Kitty + Fish** desktop and is also intended to work on Debian-based Linux systems.
 
 This repository publishes the author's *personal setup and development project*, not a commercial file-manager product. It is usable as a standalone app, but your desktop, Qt, FUSE and external integrations may require local configuration.
 
@@ -33,7 +33,7 @@ Launch with `niruorg`. There are no system-wide application files or Docker serv
 
 To try the source without installing, run `./run.sh` in a desktop session with PySide6 already installed.
 
-**Upgrade from an earlier release:** use the 0.5.0 `install.sh` directly. The installer retains the previous release and existing `QSettings` preferences, connections, Work Basket and workspaces. It does not reset user data. For rollback guidance, see [INSTALL.md](docs/INSTALL.md).
+**Upgrade from an earlier release:** use the 0.5.1 `install.sh` directly. The installer retains the previous release and existing `QSettings` preferences, connections, Work Basket and workspaces. It does not reset user data. For rollback guidance, see [INSTALL.md](docs/INSTALL.md).
 
 ## Daily workflow
 
@@ -61,8 +61,16 @@ Useful shortcuts (actual application bindings):
 
 Use **Keybindings** in the app for the complete list. In Hyprland, `Super+Q` sends a normal close request: NIRUORG handles owned mount cleanup during shutdown. A forced kill cannot run cleanup.
 
-## 0.5.0 highlights
+## 0.5.1 highlights
 
+- FileZilla XML import works reliably again; the native file picker is no longer
+  interrupted by a stale Qt event-filter target.
+- The sidebar mirrors the XDG standard folders that actually exist, rather than
+  showing an unused Desktop placeholder.
+- Nextcloud and configured cloud remotes are shown only when available.
+- Connection definitions are portable: `~/Nextcloud/Backup/niruorg/servers.json`
+  when the synced Backup directory exists, otherwise
+  `~/.config/niruorg/servers.json`. Passwords remain in Secret Service.
 - Follow NIRUX themes live, including appearance overrides, generated kitty colours, contrast-safe derived colours and atomic-replacement watcher updates.
 - Quick Look, preview, ZIP creation, checksums, Nextcloud and cloud mounts run in retained background workers; Quick Look is debounced and cached.
 - Nextcloud public links support multiple items, permissions, expiry and optional passwords, plus public-link removal and explicit unknown/local-only sync state.
@@ -79,7 +87,7 @@ See [CHANGELOG.md](CHANGELOG.md) and [Release notes](RELEASE_NOTES.md).
 - App releases: `~/.local/share/niruorg/releases/`
 - Active release: `~/.local/share/niruorg/current`
 - Runtime state/logs: `~/.local/state/niruorg/`
-- Preferences and connection definitions: Qt `QSettings` for `NIRU/NIRUORG` (typically under `~/.config/NIRU/`)
+- Preferences and connection definitions: Qt `QSettings` for `NIRU/NIRUORG` (typically under `~/.config/NIRU/`); portable connection definitions live in `~/Nextcloud/Backup/niruorg/servers.json` when that tree exists, otherwise `~/.config/niruorg/servers.json`
 - Mountpoints: under NIRUORG's user data directory; only mounts created by NIRUORG are considered owned for automatic unmount.
 - Passwords are session-only by default. Optional remembered secrets require Linux Secret Service; SSH agent/keys and rclone hold their own credentials.
 

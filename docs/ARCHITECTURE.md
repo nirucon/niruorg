@@ -1,6 +1,6 @@
 # Architecture and design notes
 
-NIRUORG 0.5.0 is an evolving PySide6 Linux desktop application. The goal is **predictable file operations and responsive interaction** rather than abstracting every external provider behind a large framework.
+NIRUORG 0.5.1 is an evolving PySide6 Linux desktop application. The goal is **predictable file operations and responsive interaction** rather than abstracting every external provider behind a large framework.
 
 ## Main pieces
 
