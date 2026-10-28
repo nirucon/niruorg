@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os,sys,shutil,subprocess,mimetypes,zipfile,tarfile,stat,json,urllib.request,urllib.parse,base64,shlex,socket,tempfile,time,re,hashlib,uuid,xml.etree.ElementTree as ET
 from pathlib import Path
-from PySide6.QtCore import QPointF,Qt,QDir,QUrl,QSettings,QModelIndex,QEvent,QSortFilterProxyModel,QRegularExpression,QSize,QFile,QTimer,QRunnable,QThreadPool,Signal,QObject,QProcess,QMimeData
+from PySide6.QtCore import QPointF,Qt,QDate,QDir,QUrl,QSettings,QModelIndex,QEvent,QSortFilterProxyModel,QRegularExpression,QSize,QFile,QTimer,QRunnable,QThreadPool,Signal,QObject,QProcess,QMimeData
 from PySide6.QtGui import QAction,QKeySequence,QDesktopServices,QImage,QPixmap,QIcon,QShortcut,QColor,QPainter,QPen,QBrush,QPolygonF,QCursor,QDrag
 from PySide6.QtWidgets import *
 from PySide6.QtWidgets import QFileIconProvider
@@ -10,11 +10,13 @@ try:
  from .utils.workers import TaskWorker
  from .services.theme import default_theme,load_nirux_metrics,load_nirux_palette
  from .services.theme_watcher import ThemeWatcher
+ from .services.nextcloud import NextcloudClient,NextcloudError
 except ImportError:  # Direct execution via installer's app.py launcher
  from transfer_safety import TransferSafetyError,verified_partial_offset,guard_transfer_locations
  from utils.workers import TaskWorker
  from services.theme import default_theme,load_nirux_metrics,load_nirux_palette
  from services.theme_watcher import ThemeWatcher
+ from services.nextcloud import NextcloudClient,NextcloudError
 APP='NIRUORG'; VERSION='0.4.0'
 THEMES={
  'Niru Noir':{'bg':'#090909','fg':'#ededed','muted':'#858585','panel':'#141414','surface':'#1b1b1b','border':'#292929','accent':'#bdbdbd','accentfg':'#090909','sel':'#333333','danger':'#d56b6b'},
@@ -1422,7 +1424,7 @@ class Main(QMainWindow):
   m.addAction('Send with LocalSend',self.localsend); m.addAction('Add to Work Basket',self.add_dropzone); m.addAction('Run NIRU Action…',self.run_niru_action); m.addAction('Run Recipe…',self.run_recipe); m.addAction('Add folder as Shortcut',self.add_selected_shortcut);
   if self.pane2.isVisible():m.addAction('Send to other pane',self.send_other_pane)
   m.addAction('Extract here',self.extract); m.addAction('Compress to ZIP',self.compress); m.addSeparator(); m.addAction('Copy path',self.copy_path); m.addAction('Copy shell-quoted path',self.copy_shell_path); m.addAction('Properties',self.properties);
-  if self._inside_nextcloud():m.addAction('Nextcloud public link…',self.nextcloud_share)
+  if self._inside_nextcloud():m.addAction('Nextcloud public link…',self.nextcloud_share); m.addAction('Remove Nextcloud public links…',self.nextcloud_remove_links)
   m.exec(pane.view.viewport().mapToGlobal(pos))
  def _desktop_candidates(self,needle):
   roots=[Path.home()/'.local/share/applications',Path('/usr/local/share/applications'),Path('/usr/share/applications')]; out=[]
@@ -3146,46 +3148,89 @@ class Main(QMainWindow):
    QTreeWidgetItem(table,[label,'Available' if path else 'Not installed',str(path or '—')])
   table.header().setSectionResizeMode(0,QHeaderView.ResizeMode.ResizeToContents); table.header().setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents); table.header().setSectionResizeMode(2,QHeaderView.ResizeMode.Stretch); l.addWidget(table,1)
   proton=QGroupBox('Proton Pass · optional'); pf=QFormLayout(proton); pcli=shutil.which('pass-cli'); pf.addRow('CLI',QLabel(str(pcli or 'Not installed'))); pf.addRow('Mode',QLabel('Optional credential/SSH provider · NIRUORG never requires Proton Pass')); l.addWidget(proton)
-  cloud=Path.home()/'Nextcloud'; nc=QGroupBox('Nextcloud sharing'); f=QFormLayout(nc); url=QLineEdit(self.s.value('nextcloud_url','')); user=QLineEdit(self.s.value('nextcloud_user','')); f.addRow('Server URL',url); f.addRow('Username',user); secret=QPushButton('Store / replace app password…'); test=QPushButton('Test API'); row=QHBoxLayout(); row.addWidget(secret); row.addWidget(test); f.addRow(row); f.addRow(QLabel(f'Local sync folder: {cloud if cloud.exists() else "not detected"}')); l.addWidget(nc)
+  cloud=Path.home()/'Nextcloud'; nc=QGroupBox('Nextcloud sharing'); f=QFormLayout(nc); url=QLineEdit(self.s.value('nextcloud_url','')); user=QLineEdit(self.s.value('nextcloud_user','')); f.addRow('Server URL',url); f.addRow('Username',user); secret=QPushButton('Store / replace app password…'); test=QPushButton('Test API'); row=QHBoxLayout(); row.addWidget(secret); row.addWidget(test); f.addRow(row); f.addRow(QLabel(f'Local sync folder: {cloud if cloud.exists() else "not detected"}')); f.addRow('Status',QLabel(self.nextcloud_status())); l.addWidget(nc)
   def store():
    if not shutil.which('secret-tool'):return self.err('secret-tool is not installed. Re-run the installer to add secure credential storage.')
    pw,ok=QInputDialog.getText(d,'Nextcloud app password','App password:',QLineEdit.EchoMode.Password)
    if ok and pw:
-    r=subprocess.run(['secret-tool','store','--label=NIRUORG Nextcloud','application','niruorg','service','nextcloud','user',user.text().strip()],input=pw,text=True,capture_output=True)
-    if r.returncode:self.err(r.stderr or 'Could not store credential.')
-    else:self.info('Nextcloud','App password stored in the system Secret Service.')
+    def store_task():
+     r=subprocess.run(['secret-tool','store','--label=NIRUORG Nextcloud','application','niruorg','service','nextcloud','user',user.text().strip()],input=pw,text=True,capture_output=True)
+     if r.returncode:raise RuntimeError(r.stderr or 'Could not store credential.')
+     return True
+    self._run_task('Storing Nextcloud credential…',store_task,lambda _:self.info('Nextcloud','App password stored in the system Secret Service.'),self.err)
   def save():self.s.setValue('nextcloud_url',url.text().strip().rstrip('/')); self.s.setValue('nextcloud_user',user.text().strip())
   def testapi():
    save()
-   try:self._nextcloud_request('/ocs/v2.php/cloud/capabilities'); self.info('Nextcloud','API connection successful.')
-   except Exception as e:self.err(e)
+   self._run_task('Testing Nextcloud API…',lambda:self._nextcloud_client().capabilities(),lambda _:self.info('Nextcloud','API connection successful.'),self.err)
   secret.clicked.connect(store); test.clicked.connect(testapi); b=QDialogButtonBox(QDialogButtonBox.StandardButton.Close); b.rejected.connect(d.reject); b.clicked.connect(lambda *_:save()); l.addWidget(b); d.exec(); save()
  def _nextcloud_secret(self):
   user=self.s.value('nextcloud_user','')
   if not user or not shutil.which('secret-tool'):return ''
   r=subprocess.run(['secret-tool','lookup','application','niruorg','service','nextcloud','user',user],text=True,capture_output=True)
   return r.stdout.strip() if r.returncode==0 else ''
+ def _nextcloud_client(self):
+  return NextcloudClient(self.s.value('nextcloud_url',''),self.s.value('nextcloud_user',''),self._nextcloud_secret)
  def _nextcloud_request(self,path,data=None):
-  url=self.s.value('nextcloud_url','').rstrip('/'); user=self.s.value('nextcloud_user',''); pw=self._nextcloud_secret()
-  if not url or not user:return (_ for _ in ()).throw(RuntimeError('Configure Nextcloud server and username in Settings → Integrations.'))
-  if not pw:return (_ for _ in ()).throw(RuntimeError('No Nextcloud app password is available in the system Secret Service.'))
-  body=urllib.parse.urlencode(data).encode() if data else None; req=urllib.request.Request(url+path,data=body); req.add_header('Authorization','Basic '+base64.b64encode(f'{user}:{pw}'.encode()).decode()); req.add_header('OCS-APIRequest','true'); req.add_header('Accept','application/json')
-  with urllib.request.urlopen(req,timeout=8) as r:return json.loads(r.read().decode())
+  return self._nextcloud_client().request(path,data)
+ def _nextcloud_relative(self,p):
+  root=Path.home()/'Nextcloud'
+  try:return '/' + str(p.resolve().relative_to(root.resolve()))
+  except Exception:raise NextcloudError('The selected item is not inside ~/Nextcloud.')
+ def nextcloud_status(self):
+  root=Path.home()/'Nextcloud'
+  if not root.is_dir():return 'not detected'
+  if not self.s.value('nextcloud_url','') or not self.s.value('nextcloud_user',''):return 'local folder only'
+  return 'configured · local sync folder; per-file status unknown'
  def _inside_nextcloud(self):
   try:return self.current_dir().resolve().is_relative_to((Path.home()/'Nextcloud').resolve())
   except:return False
- def _nextcloud_share_url(self,p):
-  root=Path.home()/'Nextcloud'
-  try:rel='/' + str(p.resolve().relative_to(root.resolve()))
-  except Exception:raise RuntimeError('The selected item is not inside ~/Nextcloud.')
-  res=self._nextcloud_request('/ocs/v2.php/apps/files_sharing/api/v1/shares',{'path':rel,'shareType':'3','permissions':'1','format':'json'}); data=res.get('ocs',{}).get('data',{}); url=data.get('url') if isinstance(data,dict) else None
-  if not url:raise RuntimeError(res.get('ocs',{}).get('meta',{}).get('message','Nextcloud did not return a public URL.'))
-  return url
+ def _nextcloud_options(self):
+  d=NiruDialog(self); d.setWindowTitle('Nextcloud public links'); d.setMinimumWidth(480); f=QFormLayout(d)
+  permissions=QComboBox(); permissions.addItems(['Read only','Read and write']); expiry=QCheckBox('Set expiry date'); date=QDateEdit(QDate.currentDate().addDays(7)); date.setCalendarPopup(True); date.setEnabled(False); password=QCheckBox('Require a password'); secret=QLineEdit(); secret.setEchoMode(QLineEdit.EchoMode.Password); secret.setEnabled(False)
+  expiry.toggled.connect(date.setEnabled); password.toggled.connect(secret.setEnabled); f.addRow('Permission',permissions); f.addRow(expiry,date); f.addRow(password,secret); buttons=QDialogButtonBox(QDialogButtonBox.StandardButton.Ok|QDialogButtonBox.StandardButton.Cancel); [button.setIcon(QIcon()) for button in buttons.buttons()]; buttons.accepted.connect(d.accept); buttons.rejected.connect(d.reject); f.addRow(buttons)
+  if d.exec()!=QDialog.DialogCode.Accepted:return None
+  if password.isChecked() and not secret.text():self.err('Enter a public-link password or clear the password option.'); return None
+  return {'permissions':1 if permissions.currentIndex()==0 else 15,'expire':date.date().toString('yyyy-MM-dd') if expiry.isChecked() else '','password':secret.text() if password.isChecked() else ''}
  def nextcloud_share(self):
   s=self.selected()
-  if len(s)!=1:return self.err('Select exactly one Nextcloud file or folder.')
-  def done(url):QApplication.clipboard().setText(url); self.info('Nextcloud public link',url+'\n\nCopied to clipboard.')
-  self._run_task('Creating Nextcloud public link…',lambda:self._nextcloud_share_url(s[0]),done,self.err)
+  if not s:return self.err('Select one or more Nextcloud files or folders.')
+  try:relative=[self._nextcloud_relative(p) for p in s]
+  except NextcloudError as error:return self.err(error)
+  options=self._nextcloud_options()
+  if options is None:return
+  def task():
+   client=self._nextcloud_client(); rows=[]; errors=[]
+   for path in relative:
+    try:rows.append({'path':path,'share':client.create_share(path,options['permissions'],options['expire'],options['password'])})
+    except Exception as error:errors.append(f'{path}: {error}')
+   return rows,errors
+  def done(result):
+   rows,errors=result; urls=[row['share'].get('url','') for row in rows if row['share'].get('url')]
+   if urls:QApplication.clipboard().setText('\n'.join(urls))
+   lines=[f'{len(urls)} public link(s) created.']+urls
+   if errors:lines += ['','Not created:']+errors
+   self.info('Nextcloud public links','\n'.join(lines)+('\n\nCopied to clipboard.' if urls else ''))
+  self._run_task(f'Creating {len(relative)} Nextcloud public link(s)…',task,done,self.err)
+ def nextcloud_remove_links(self):
+  s=self.selected()
+  if not s:return self.err('Select one or more Nextcloud files or folders.')
+  try:relative=[self._nextcloud_relative(p) for p in s]
+  except NextcloudError as error:return self.err(error)
+  if not self.confirm('Remove public links',f'Remove public links from {len(relative)} selected item(s)?\n\nLocal files are never changed.','Remove links'):return
+  def task():
+   client=self._nextcloud_client(); removed=0; errors=[]
+   for path in relative:
+    try:
+     for share in client.list_shares(path):
+      if str(share.get('share_type'))=='3':
+       client.delete_share(share.get('id')); removed+=1
+    except Exception as error:errors.append(f'{path}: {error}')
+   return removed,errors
+  def done(result):
+   removed,errors=result; lines=[f'Removed {removed} public link(s).']
+   if errors:lines += ['','Failures:']+errors
+   self.info('Nextcloud public links','\n'.join(lines))
+  self._run_task('Removing Nextcloud public links…',task,done,self.err)
  def media_info(self,p):
   exe=shutil.which('ffprobe')
   if not exe:return ''

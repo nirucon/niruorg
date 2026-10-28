@@ -9,6 +9,9 @@
 
 ## Unreleased
 
+- Isolated Nextcloud OCS access in a tested client and added multi-item public
+  links with permissions, expiry, password, link removal and explicit
+  local-only/unknown sync status.
 - Added Follow NIRUX using appearance.toml, the generated kitty palette and
   contrast-safe derived colours, with live QFileSystemWatcher updates after
   atomic theme replacement.
