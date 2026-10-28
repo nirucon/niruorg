@@ -13,6 +13,9 @@ try:
  from .services.nextcloud import NextcloudClient,NextcloudError
  from .services.local_watcher import LocalDirectoryWatcher
  from .core.rename import RenameError,execute_bulk_rename,plan_bulk_rename
+ from .core.paths import mounted_paths,path_is_mounted,lexical_under
+ from .utils.format import human
+ from .utils.logging import log_error
 except ImportError:  # Direct execution via installer's app.py launcher
  from transfer_safety import TransferSafetyError,verified_partial_offset,guard_transfer_locations
  from utils.workers import TaskWorker
@@ -21,6 +24,9 @@ except ImportError:  # Direct execution via installer's app.py launcher
  from services.nextcloud import NextcloudClient,NextcloudError
  from services.local_watcher import LocalDirectoryWatcher
  from core.rename import RenameError,execute_bulk_rename,plan_bulk_rename
+ from core.paths import mounted_paths,path_is_mounted,lexical_under
+ from utils.format import human
+ from utils.logging import log_error
 APP='NIRUORG'; VERSION='0.4.0'
 THEMES={
  'Niru Noir':{'bg':'#090909','fg':'#ededed','muted':'#858585','panel':'#141414','surface':'#1b1b1b','border':'#292929','accent':'#bdbdbd','accentfg':'#090909','sel':'#333333','danger':'#d56b6b'},
@@ -28,13 +34,6 @@ THEMES={
  'Satie':{'bg':'#ddd5c4','fg':'#292b29','muted':'#737168','panel':'#cbc2af','surface':'#d3cbb9','border':'#aaa18f','accent':'#4f4c45','accentfg':'#f5f0e7','sel':'#bbb6a9','danger':'#8b4a46'},
  'Nord':{'bg':'#2e3440','fg':'#eceff4','muted':'#9aa4b2','panel':'#3b4252','surface':'#434c5e','border':'#4c566a','accent':'#88c0d0','accentfg':'#2e3440','sel':'#434c5e','danger':'#bf616a'},
 }
-def human(n):
- try:n=float(n)
- except:return '—'
- for u in ['B','KB','MB','GB','TB']:
-  if n<1024:return f'{n:.0f} {u}' if u=='B' else f'{n:.1f} {u}'
-  n/=1024
- return f'{n:.1f} PB'
 def _safe_archive_target(base,name):
  base=Path(base).resolve(); target=(base/name).resolve()
  if target!=base and base not in target.parents:raise RuntimeError(f'Unsafe archive path blocked: {name}')
@@ -142,27 +141,6 @@ class SemanticIconProvider(QFileIconProvider):
    if name.endswith(('.zip','.7z','.rar','.tar','.gz','.xz','.zst','.bz2')):return self._icon('archive')
   except Exception:pass
   return self._icon('file')
-def mounted_paths():
- """Read kernel mount metadata without touching the mounted filesystems."""
- out=set()
- try:
-  for line in Path('/proc/self/mountinfo').read_text(errors='replace').splitlines():
-   fields=line.split()
-   if len(fields)>4:
-    raw=fields[4].replace('\\040',' ').replace('\\011','\\t').replace('\\134','\\')
-    out.add(os.path.normpath(raw))
- except Exception:pass
- return out
-
-def path_is_mounted(path,mounts=None):
- return os.path.normpath(os.path.abspath(os.path.expanduser(str(path)))) in (mounts if mounts is not None else mounted_paths())
-
-def lexical_under(path,base):
- try:
-  p=os.path.normpath(os.path.abspath(os.path.expanduser(str(path))))
-  b=os.path.normpath(os.path.abspath(os.path.expanduser(str(base))))
-  return p==b or p.startswith(b+os.sep)
- except Exception:return False
 
 class RemoteProbeSignals(QObject):
  done=Signal(object)
@@ -3515,7 +3493,7 @@ class Main(QMainWindow):
  def confirm(self,title,text,accept='Continue'):
   box=NiruDialog(self); box.setWindowTitle(title); lay=QVBoxLayout(box); lab=QLabel(str(text)); lab.setWordWrap(True); lay.addWidget(lab); row=QHBoxLayout(); row.addStretch(); cancel=QPushButton('Cancel'); ok=QPushButton(accept); ok.setDefault(True); ok.setAutoDefault(True); cancel.setAutoDefault(False); cancel.clicked.connect(box.reject); ok.clicked.connect(box.accept); row.addWidget(cancel); row.addWidget(ok); lay.addLayout(row); QTimer.singleShot(0,ok.setFocus); return box.exec()==QDialog.DialogCode.Accepted
  def err(self,e):
-  box=QMessageBox(self); box.setWindowTitle(APP); box.setIcon(QMessageBox.Icon.NoIcon); box.setText(str(e)); box.addButton(QMessageBox.StandardButton.Ok); box.exec()
+  log_error('ui',e); box=QMessageBox(self); box.setWindowTitle(APP); box.setIcon(QMessageBox.Icon.NoIcon); box.setText(str(e)); box.addButton(QMessageBox.StandardButton.Ok); box.exec()
 def main():
  if '--version' in sys.argv:print(VERSION);return 0
  if '--self-test' in sys.argv:

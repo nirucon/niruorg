@@ -9,6 +9,8 @@
 
 ## Unreleased
 
+- Extracted shared path, formatting and error-logging utilities, with central
+  technical error logging behind user-facing dialogs.
 - Added debounced local-directory auto-refresh, cached semantic icons,
   accessible pane/status names, a richer status line, and atomic bulk rename
   preflight with rollback-safe staging.

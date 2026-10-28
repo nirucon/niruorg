@@ -8,7 +8,8 @@ assert 'self._remote_probe_pool.setMaxThreadCount(2)' in src
 assert "self.pane1._commit_go(Path.home(),True)" in src
 assert 'QTimer.singleShot(0,self._post_show_startup)' in src
 assert "self.status.setText(f'{pane.remote_name} · Checking…')" in src
-assert 'path_is_mounted' in src and "Path('/proc/self/mountinfo')" in src
+paths=Path('niruorg/core/paths.py').read_text()
+assert 'path_is_mounted' in paths and "Path('/proc/self/mountinfo')" in paths
 # Startup/sidebar must not synchronously probe saved paths or invoke rclone.
 tree=ast.parse(src)
 def body(name):
