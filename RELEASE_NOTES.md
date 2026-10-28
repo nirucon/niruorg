@@ -1,12 +1,14 @@
-# NIRUORG 0.4.0 — Command Palette & Maintenance
+# NIRUORG 0.5.0 — Responsiveness, NIRUX and Nextcloud
 
-A focused, backwards-compatible quality release built from 0.3.0.
+A focused quality release built from 0.4.0.
 
-- Replaces the fixed-choice Actions dialog with a keyboard-first searchable command palette (`Ctrl+K`).
-- Supports filtering, arrow-key selection, Enter, double-click and Escape via dialog behavior.
-- Adds a regression contract for the new palette and retains the existing transfer-integrity safeguards.
-- Keeps historical regression tests, because deleting them without replacement would reduce coverage.
+- Follow NIRUX in real time using appearance.toml and the generated kitty palette, with contrast-safe derived colours and atomic file replacement handling.
+- Quick Look, preview, ZIP creation, checksum and Nextcloud/cloud operations now use retained background workers; Quick Look is debounced and cached.
+- Nextcloud public links support multiple selected items, read-only/read-write permissions, expiry and optional passwords; public-link removal and explicit local-only/unknown sync state are available.
+- Local panes refresh after external changes; bulk rename validates every target before changing anything and uses staged rollback-safe execution.
+- Semantic icons are cached per palette, status reports item count, selection size, free space, endpoint, transfers and Nextcloud state, and pane/filter/location/status names are accessible.
+- Shared path, formatting and error-logging utilities reduce app.py responsibilities without changing the CLI or user data model.
 
 ## Validation limitations
 
-Qt GUI behavior, SSHFS/rclone disconnects, transfer concurrency and installer activation require tests on the target Linux desktop. Safe Sync, Transfer Center 2.0 and full FUSE isolation are not yet delivered.
+Live SSHFS/rclone disconnect, transfer concurrency, Nextcloud server compatibility and Wayland/desktop integration still require on-device testing. No automatic sync engine or destructive synchronization was added.

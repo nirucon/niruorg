@@ -1,6 +1,6 @@
 # Architecture and design notes
 
-NIRUORG 0.3.0 is an evolving PySide6 Linux desktop application. The goal is **predictable file operations and responsive interaction** rather than abstracting every external provider behind a large framework.
+NIRUORG 0.5.0 is an evolving PySide6 Linux desktop application. The goal is **predictable file operations and responsive interaction** rather than abstracting every external provider behind a large framework.
 
 ## Main pieces
 
@@ -8,7 +8,12 @@ NIRUORG 0.3.0 is an evolving PySide6 Linux desktop application. The goal is **pr
 |---|---|---|
 | GUI and navigation | `niruorg/app.py` | Qt `QMainWindow`, two independent panes, per-pane tabs, sidebar, dialogs |
 | File browser | Qt `QFileSystemModel` with proxy/model state | Local and FUSE-backed paths require different responsiveness assumptions |
-| Transfers | `TransferWorker` in `app.py` | A `QRunnable` on a background thread; `progress`, `activity`, `done` and `failed` signals |
+| Transfers | `TransferWorker` in `app.py` | A `QRunnable` on a background thread; progress, activity and terminal signals |
+| Background tasks | `niruorg/utils/workers.py` | Retained one-shot workers for file preview, checksums, archives and Nextcloud |
+| NIRUX theme | `niruorg/services/theme.py` and `theme_watcher.py` | File-based palette/metrics plus debounced atomic-replacement watching |
+| Nextcloud | `niruorg/services/nextcloud.py` | OCS client behind the GUI worker, with no token logging |
+| Local refresh | `niruorg/services/local_watcher.py` | Debounced local-only directory watcher |
+| Bulk rename | `niruorg/core/rename.py` | Preflight, staged execution and rollback |
 | Transfer validation | `niruorg/transfer_safety.py` | Qt-independent partial verification and path guards |
 | Work Basket / Compare | `MetadataWorker` | Bounded remote metadata subprocesses instead of synchronous UI calls |
 | Remote mounts | SSHFS and rclone, accessed through mount points | Owned mounts tracked in `~/.local/state/niruorg/owned-mounts.json` |

@@ -2,13 +2,13 @@
 
 NIRUORG primarily targets Arch/Omarchy and Debian-based desktop distributions, with Python 3 and PySide6.
 
-## Install 0.3.0 from the ZIP
+## Install 0.5.0 from the ZIP
 
 In the directory containing the release archive:
 
 ```bash
-unzip NIRUORG-0.3.0.zip
-cd NIRUORG-0.3.0
+unzip NIRUORG-0.5.0.zip
+cd NIRUORG-0.5.0
 chmod +x install.sh
 ./install.sh
 ```
@@ -34,7 +34,7 @@ niruorg --version
 readlink -f ~/.local/share/niruorg/current
 ```
 
-If 0.3.0 is not active, inspect the installer output before retrying. A failed staged upgrade should retain the previous active release.
+If 0.5.0 is not active, inspect the installer output before retrying. A failed staged upgrade should retain the previous active release.
 
 ## Rollback
 
@@ -50,7 +50,7 @@ Then switch to the previous version, for example:
 ./rollback.sh 0.2.0
 ```
 
-The rollback script switches only the active release symlink after checking the target. It does not delete data, connections or newer release directories. Newer settings may not always be understood by older versions; this is why the default 0.3.0 upgrade preserves old settings rather than migrating or rewriting them.
+The rollback script switches only the active release symlink after checking the target. It does not delete data, connections or newer release directories. Newer settings may not always be understood by older versions; this is why the default 0.5.0 upgrade preserves old settings rather than migrating or rewriting them.
 
 ## Uninstall
 

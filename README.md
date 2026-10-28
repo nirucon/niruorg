@@ -1,6 +1,6 @@
 # NIRUORG
 
-**NIRUORG 0.4.0** is a personal, keyboard-friendly two-pane file organizer for Linux, written in Python and PySide6. It is developed primarily for an **Omarchy / Arch Linux + Hyprland + Kitty + Fish** desktop and is also intended to work on Debian-based Linux systems.
+**NIRUORG 0.5.0** is a personal, keyboard-friendly two-pane file organizer for Linux, written in Python and PySide6. It is developed primarily for an **Omarchy / Arch Linux + Hyprland + Kitty + Fish** desktop and is also intended to work on Debian-based Linux systems.
 
 This repository publishes the author's *personal setup and development project*, not a commercial file-manager product. It is usable as a standalone app, but your desktop, Qt, FUSE and external integrations may require local configuration.
 
@@ -13,7 +13,8 @@ This repository publishes the author's *personal setup and development project*,
 - Work Basket for collecting file references from different locations; Workspaces and Collections for saved workflows.
 - Compare two locations without automatic destructive synchronization.
 - Search, Quick Look/preview, image gallery, archives, duplicate finder, checksums, actions and recipes.
-- Niru Noir, C. Larsson, Satie, Nord and Follow Omarchy themes.
+- Follow NIRUX in real time, with Niru Noir, C. Larsson, Satie, Nord, Follow Omarchy and System fallbacks.
+- Debounced Quick Look, live local refresh, atomic bulk rename and Nextcloud links with expiry/password/permissions.
 
 **Remote-to-remote:** a transfer generally passes through *this computer*. It is not a server-side copy. FUSE can become unavailable or block despite mount-table status; read [Known limitations](#known-limitations) and [Architecture](docs/ARCHITECTURE.md).
 
@@ -32,7 +33,7 @@ Launch with `niruorg`. There are no system-wide application files or Docker serv
 
 To try the source without installing, run `./run.sh` in a desktop session with PySide6 already installed.
 
-**Upgrade from 0.3.0:** use the 0.4.0 `install.sh` directly. The installer retains the previous release and existing `QSettings` preferences, connections, Work Basket and workspaces. It does not reset user data. For rollback guidance, see [INSTALL.md](docs/INSTALL.md).
+**Upgrade from an earlier release:** use the 0.5.0 `install.sh` directly. The installer retains the previous release and existing `QSettings` preferences, connections, Work Basket and workspaces. It does not reset user data. For rollback guidance, see [INSTALL.md](docs/INSTALL.md).
 
 ## Daily workflow
 
@@ -60,14 +61,16 @@ Useful shortcuts (actual application bindings):
 
 Use **Keybindings** in the app for the complete list. In Hyprland, `Super+Q` sends a normal close request: NIRUORG handles owned mount cleanup during shutdown. A forced kill cannot run cleanup.
 
-## 0.4.0 highlights
+## 0.5.0 highlights
 
-- Searchable, keyboard-first command palette with immediate filtering, arrow navigation and Enter activation; replaces the old fixed-choice Actions dialog.
-- Regression test for the command palette and release consistency.
-- Repository remains source-only; historical regression tests are retained because they protect current behavior, not because they are old releases.
-- Previous transfer-integrity, remote mount, and session safeguards remain in place.
+- Follow NIRUX themes live, including appearance overrides, generated kitty colours, contrast-safe derived colours and atomic-replacement watcher updates.
+- Quick Look, preview, ZIP creation, checksums, Nextcloud and cloud mounts run in retained background workers; Quick Look is debounced and cached.
+- Nextcloud public links support multiple items, permissions, expiry and optional passwords, plus public-link removal and explicit unknown/local-only sync state.
+- Local directories refresh automatically; bulk rename validates every target first and executes through a rollback-safe staging step.
+- Richer status, cached semantic icons and accessible pane, filter, location and status names.
+- Split-view size persistence, transfer integrity, remote mounts and existing workspace/session safeguards remain in place.
 
-**Scope:** This is an incremental quality release. The planned transfer queue redesign, safe sync, and comprehensive asynchronous FUSE I/O conversion are not represented as completed work. They require separate implementation and live remote testing.
+**Scope:** This remains a quality release, not an automatic sync engine or a transfer-queue redesign. Live SSHFS/rclone failure, Nextcloud server and Wayland acceptance testing still belong on the real desktop.
 
 See [CHANGELOG.md](CHANGELOG.md) and [Release notes](RELEASE_NOTES.md).
 

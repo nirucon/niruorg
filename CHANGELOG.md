@@ -7,7 +7,7 @@
 
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-10-28
 
 - Extracted shared path, formatting and error-logging utilities, with central
   technical error logging behind user-facing dialogs.

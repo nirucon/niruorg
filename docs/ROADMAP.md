@@ -1,6 +1,6 @@
-# Engineering roadmap after 0.4.0
+# Engineering roadmap after 0.5.0
 
-The following are **not implemented** in 0.4.0 and should be approached incrementally with real SSHFS/rclone testing:
+The following are **not implemented** in 0.5.0 and should be approached incrementally with real SSHFS/rclone testing:
 
 1. Remove remaining blocking FUSE metadata and directory operations from the GUI thread; introduce cancellation and bounded worker lifetimes.
 2. Expand transfer activity into an inspectable queue with explicit failure/retry states and verified resume.
