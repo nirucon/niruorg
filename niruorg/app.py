@@ -1702,10 +1702,10 @@ class Main(QMainWindow):
  def _remember_split_sizes(self,*_):
   if self.pane2.isVisible():
    sizes=self.split.sizes()
-   if len(sizes)==2 and min(sizes)>0:self.settings.setValue('split_sizes',sizes)
+   if len(sizes)==2 and min(sizes)>0:self.s.setValue('split_sizes',sizes)
 
  def _restore_split_sizes(self):
-  raw=self.settings.value('split_sizes')
+  raw=self.s.value('split_sizes')
   try:vals=[int(x) for x in raw] if isinstance(raw,(list,tuple)) else []
   except Exception:vals=[]
   self.split.setSizes(vals if len(vals)==2 and min(vals)>0 else [1,1])

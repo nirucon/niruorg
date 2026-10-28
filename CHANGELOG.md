@@ -7,6 +7,11 @@
 
 # Changelog
 
+## Unreleased
+
+- Fixed split-view pane sizes not being saved or restored because the code referenced `self.settings` instead of the application's `self.s` settings object.
+- Added a real splitter regression that opens, resizes, closes and reopens the right pane.
+
 ## 0.3.0 — Transfer Integrity & GitHub Baseline
 
 - Verified existing `.niruorg-part` bytes against the current source before allowing resume; mismatched partials are refused and preserved.
