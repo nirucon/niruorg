@@ -46,3 +46,4 @@ owned-mounts.json
 # NIRUORG source packages
 !niruorg/core/
 !niruorg/core/**
+niruorg/core/__pycache__/
