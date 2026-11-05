@@ -65,7 +65,7 @@ def _hex(value: Any, fallback: str) -> str:
 
 def _rgb(value: str) -> tuple[int, int, int]:
     value = _hex(value, '#000000')
-    return tuple(int(value[i:i + 2], 16) for i in (1, 3, 5))
+    return tuple(int(value[i : i + 2], 16) for i in (1, 3, 5))
 
 
 def _hex_rgb(rgb: tuple[float, float, float]) -> str:
@@ -82,6 +82,7 @@ def luminance(value: str) -> float:
     def channel(v: int) -> float:
         v /= 255
         return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
     r, g, b = _rgb(value)
     return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 
@@ -117,9 +118,18 @@ def _kitty(path: Path) -> dict[str, str]:
             continue
         key, value = line.split(None, 1)
         if key in {
-            'background', 'foreground', 'color0', 'color1', 'color4', 'color6',
-            'color7', 'color8', 'selection_background', 'selection_foreground',
-            'cursor', 'cursor_text_color',
+            'background',
+            'foreground',
+            'color0',
+            'color1',
+            'color4',
+            'color6',
+            'color7',
+            'color8',
+            'selection_background',
+            'selection_foreground',
+            'cursor',
+            'cursor_text_color',
         }:
             colors[key] = value.strip()
     return colors
@@ -155,29 +165,45 @@ def load_nirux_palette(paths: dict[str, Path] | None = None) -> dict[str, str]:
     colors = appearance.get('colors') if isinstance(appearance.get('colors'), dict) else {}
     palette = dict(FALLBACK)
     if kitty:
-        palette.update({
-            'bg': _hex(kitty.get('background'), palette['bg']),
-            'fg': _hex(kitty.get('foreground'), palette['fg']),
-            'muted': _hex(kitty.get('color8'), palette['muted']),
-            'border': mix(_hex(kitty.get('color0'), palette['bg']), _hex(kitty.get('color8'), palette['border']), 0.55),
-            'accent': _hex(kitty.get('color4'), palette['accent']),
-            'sel': _hex(kitty.get('selection_background'), palette['sel']),
-            'danger': _hex(kitty.get('color1'), palette['danger']),
-            'surface': mix(_hex(kitty.get('background'), palette['bg']), _hex(kitty.get('foreground'), palette['fg']), 0.07),
-            'panel': mix(_hex(kitty.get('background'), palette['bg']), _hex(kitty.get('foreground'), palette['fg']), 0.035),
-        })
+        palette.update(
+            {
+                'bg': _hex(kitty.get('background'), palette['bg']),
+                'fg': _hex(kitty.get('foreground'), palette['fg']),
+                'muted': _hex(kitty.get('color8'), palette['muted']),
+                'border': mix(
+                    _hex(kitty.get('color0'), palette['bg']),
+                    _hex(kitty.get('color8'), palette['border']),
+                    0.55,
+                ),
+                'accent': _hex(kitty.get('color4'), palette['accent']),
+                'sel': _hex(kitty.get('selection_background'), palette['sel']),
+                'danger': _hex(kitty.get('color1'), palette['danger']),
+                'surface': mix(
+                    _hex(kitty.get('background'), palette['bg']),
+                    _hex(kitty.get('foreground'), palette['fg']),
+                    0.07,
+                ),
+                'panel': mix(
+                    _hex(kitty.get('background'), palette['bg']),
+                    _hex(kitty.get('foreground'), palette['fg']),
+                    0.035,
+                ),
+            }
+        )
     if colors:
-        palette.update({
-            'bg': _hex(colors.get('background'), palette['bg']),
-            'fg': _hex(colors.get('foreground'), palette['fg']),
-            'muted': _hex(colors.get('muted'), palette['muted']),
-            'border': _hex(colors.get('border'), palette['border']),
-            'accent': _hex(colors.get('focus') or colors.get('accent'), palette['accent']),
-            'sel': _hex(colors.get('selected'), palette['sel']),
-            'danger': _hex(colors.get('error'), palette['danger']),
-            'panel': _hex(colors.get('surface'), palette['panel']),
-            'surface': _hex(colors.get('surface'), palette['surface']),
-        })
+        palette.update(
+            {
+                'bg': _hex(colors.get('background'), palette['bg']),
+                'fg': _hex(colors.get('foreground'), palette['fg']),
+                'muted': _hex(colors.get('muted'), palette['muted']),
+                'border': _hex(colors.get('border'), palette['border']),
+                'accent': _hex(colors.get('focus') or colors.get('accent'), palette['accent']),
+                'sel': _hex(colors.get('selected'), palette['sel']),
+                'danger': _hex(colors.get('error'), palette['danger']),
+                'panel': _hex(colors.get('surface'), palette['panel']),
+                'surface': _hex(colors.get('surface'), palette['surface']),
+            }
+        )
     palette['accentfg'] = readable_on(palette['accent'])
     if contrast(palette['bg'], palette['fg']) < 4.5:
         palette['fg'] = readable_on(palette['bg'])

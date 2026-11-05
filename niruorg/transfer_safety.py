@@ -3,13 +3,16 @@
 The copy worker calls these functions off the GUI thread. No remote/FUSE
 filesystem operation should be made from an event handler to validate paths.
 """
+
 from __future__ import annotations
 import os
 import stat
 from pathlib import Path
 
+
 class TransferSafetyError(RuntimeError):
     """A copy/move was refused to avoid overwriting potentially valuable data."""
+
 
 def verified_partial_offset(source: Path, partial: Path, chunk_size: int = 1024 * 1024) -> int:
     """Return resumable byte count iff the entire partial matches source.
@@ -32,6 +35,7 @@ def verified_partial_offset(source: Path, partial: Path, chunk_size: int = 1024 
                 raise TransferSafetyError('Partial differs from source; refusing unsafe resume')
             left -= count
     return size
+
 
 def guard_transfer_locations(source: Path, destination: Path) -> None:
     """Reject direct self-copies and attempts to copy a folder into itself.

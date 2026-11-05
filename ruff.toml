@@ -1,0 +1,7 @@
+# Development-only formatter settings (ruff format). NIRUORG has no runtime
+# or install-time dependency on ruff. Run: ruff format niruorg
+line-length = 110
+target-version = "py310"
+
+[format]
+quote-style = "preserve"

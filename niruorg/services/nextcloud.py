@@ -37,7 +37,9 @@ class NextcloudClient:
         value = self._secret() if callable(self._secret) else self._secret
         return (value or '').strip()
 
-    def request(self, path: str, data: dict[str, Any] | None = None, method: str | None = None) -> dict[str, Any]:
+    def request(
+        self, path: str, data: dict[str, Any] | None = None, method: str | None = None
+    ) -> dict[str, Any]:
         if not path.startswith('/'):
             raise NextcloudError('Invalid Nextcloud API path.')
         password = self.secret
@@ -45,7 +47,9 @@ class NextcloudClient:
             raise NextcloudError('No Nextcloud app password is available in the system Secret Service.')
         body = urllib.parse.urlencode(data).encode() if data else None
         request = urllib.request.Request(self.base_url + path, data=body, method=method)
-        request.add_header('Authorization', 'Basic ' + base64.b64encode(f'{self.user}:{password}'.encode()).decode())
+        request.add_header(
+            'Authorization', 'Basic ' + base64.b64encode(f'{self.user}:{password}'.encode()).decode()
+        )
         request.add_header('OCS-APIRequest', 'true')
         request.add_header('Accept', 'application/json')
         try:
@@ -73,7 +77,9 @@ class NextcloudClient:
         data = self._data(self.request(CAPABILITIES_PATH))
         return data if isinstance(data, dict) else {}
 
-    def create_share(self, path: str, permissions: int = 1, expire: str = '', password: str = '') -> dict[str, Any]:
+    def create_share(
+        self, path: str, permissions: int = 1, expire: str = '', password: str = ''
+    ) -> dict[str, Any]:
         if not path.startswith('/') or '..' in path.split('/'):
             raise NextcloudError('The selected path is not a valid Nextcloud path.')
         payload = {'path': path, 'shareType': '3', 'permissions': str(int(permissions)), 'format': 'json'}
@@ -81,9 +87,15 @@ class NextcloudClient:
             payload['expireDate'] = expire
         if password:
             payload['password'] = password
-        data = self._data(self.request(SHARE_PATH + '?' + urllib.parse.urlencode({'format': 'json'}), payload))
+        data = self._data(
+            self.request(SHARE_PATH + '?' + urllib.parse.urlencode({'format': 'json'}), payload)
+        )
         if not isinstance(data, dict) or not data.get('url'):
-            raise NextcloudError((data or {}).get('message') if isinstance(data, dict) else 'Nextcloud did not return a public URL.')
+            raise NextcloudError(
+                (data or {}).get('message')
+                if isinstance(data, dict)
+                else 'Nextcloud did not return a public URL.'
+            )
         return data
 
     def list_shares(self, path: str | None = None) -> list[dict[str, Any]]:

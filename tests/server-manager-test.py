@@ -6,7 +6,7 @@ for token in ["QPushButton('Add connection')","QPushButton('Edit…')","QPushBut
  assert token in m, token
 assert '.finished.connect(' in m and '.errorOccurred.connect(' in m
 assert 'timer.timeout.connect' in m and 'p.terminate()' in m and 'p.kill()' in m
-saved=m.split("return n,{'protocol'",1)[1].split('}',1)[0]
+saved=m.split("{'protocol':pr,'route'",1)[1].split('}',1)[0]  # the dict the editor returns (formatter may wrap it)
 assert "'password':" not in saved
 assert 'sshpass' not in m
 assert "input=pw+'\\n'" in m

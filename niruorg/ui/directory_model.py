@@ -13,6 +13,7 @@ QFileSystemModel API NIRUORG uses (``setRootPath``, ``rootPath``,
 ``lastModified``, ``filter``/``setFilter``, ``setIconProvider`` and the
 ``directoryLoaded`` signal), with the same columns, headers and display text.
 """
+
 from __future__ import annotations
 
 import atexit
@@ -45,8 +46,12 @@ from PySide6.QtCore import QMimeDatabase
 from PySide6.QtGui import QImage
 
 _NUM = re.compile(r'(\d+)')
-_ITEM_FLAGS = (Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsEnabled
-               | Qt.ItemFlag.ItemNeverHasChildren)
+_ITEM_FLAGS = (
+    Qt.ItemFlag.ItemIsSelectable
+    | Qt.ItemFlag.ItemIsDragEnabled
+    | Qt.ItemFlag.ItemIsEnabled
+    | Qt.ItemFlag.ItemNeverHasChildren
+)
 _NO_FLAGS = Qt.ItemFlag.NoItemFlags
 _INVALID = QModelIndex()
 _ALIGN_SIZE = int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -79,7 +84,7 @@ class Entry:
         self.mtime = mtime
         self.hidden = name.startswith('.')
         dot = self.fold.rfind('.')
-        self.suffix = self.fold[dot + 1:] if dot > 0 else ''
+        self.suffix = self.fold[dot + 1 :] if dot > 0 else ''
 
     def same_metadata(self, other) -> bool:
         return self.is_dir == other.is_dir and self.size == other.size and self.mtime == other.mtime
@@ -464,9 +469,17 @@ class DirectoryModel(QAbstractItemModel):
         return (parent is None or not parent.isValid()) and bool(self._visible)
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole and 0 <= section < 4:
+        if (
+            orientation == Qt.Orientation.Horizontal
+            and role == Qt.ItemDataRole.DisplayRole
+            and 0 <= section < 4
+        ):
             return self.HEADERS[section]
-        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DecorationRole and section == 0:
+        if (
+            orientation == Qt.Orientation.Horizontal
+            and role == Qt.ItemDataRole.DecorationRole
+            and section == 0
+        ):
             # As QFileSystemModel: a 16 px transparent header decoration lines
             # the "Name" title up with the names after the row icons.
             if self._header_spacer is None:
@@ -737,7 +750,9 @@ class DirectoryModel(QAbstractItemModel):
                         found[e.name] = row
                         if len(found) == len(wanted):
                             break
-            targets = [self.createIndex(found[name], idx.column()) if name in found else QModelIndex()
-                       for idx, name in zip(persistent, names)]
+            targets = [
+                self.createIndex(found[name], idx.column()) if name in found else QModelIndex()
+                for idx, name in zip(persistent, names)
+            ]
             self.changePersistentIndexList(persistent, targets)
         self.layoutChanged.emit()

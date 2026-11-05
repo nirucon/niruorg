@@ -14,7 +14,11 @@ def plan_bulk_rename(paths, pattern: str) -> list[tuple[Path, Path]]:
     seen = set()
     for index, raw in enumerate(paths, 1):
         source = Path(raw)
-        name = pattern.replace('{name}', source.stem).replace('{n}', f'{index:02d}').replace('{ext}', source.suffix)
+        name = (
+            pattern.replace('{name}', source.stem)
+            .replace('{n}', f'{index:02d}')
+            .replace('{ext}', source.suffix)
+        )
         if not name or name in ('.', '..') or '/' in name or '\0' in name:
             raise RenameError(f'Invalid target name for {source.name}.')
         target = source.with_name(name)
