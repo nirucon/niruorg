@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os,sys,shutil,subprocess,mimetypes,zipfile,tarfile,stat,json,urllib.request,urllib.parse,base64,shlex,socket,tempfile,time,re,hashlib,uuid,xml.etree.ElementTree as ET
 from pathlib import Path
-from PySide6.QtCore import QPointF,Qt,QDate,QDir,QUrl,QSettings,QStandardPaths,QModelIndex,QEvent,QSortFilterProxyModel,QIdentityProxyModel,QRegularExpression,QSize,QFile,QTimer,QRunnable,QThreadPool,Signal,QObject,QProcess,QMimeData
+from PySide6.QtCore import QItemSelectionModel,QPointF,Qt,QDate,QDir,QUrl,QSettings,QStandardPaths,QModelIndex,QEvent,QSortFilterProxyModel,QIdentityProxyModel,QRegularExpression,QSize,QFile,QTimer,QRunnable,QThreadPool,Signal,QObject,QProcess,QMimeData
 from PySide6.QtGui import QStandardItemModel,QStandardItem,QAction,QKeySequence,QDesktopServices,QImage,QPixmap,QIcon,QShortcut,QColor,QPainter,QPen,QBrush,QPolygonF,QCursor,QDrag
 from PySide6.QtWidgets import *
 from PySide6.QtWidgets import QFileIconProvider
@@ -564,10 +564,25 @@ class BrowserTree(QTableView):
   r=self.visualRect(self.model().index(row,0,self.rootIndex()))
   if r.isValid():self.viewport().update(0,r.top(),self.viewport().width(),r.height())
  def keyboardSearch(self,text):
-  # Type-ahead always matches names, whichever column holds the cursor.
-  cur=self.currentIndex()
-  if cur.isValid() and cur.column()!=0:self.setCurrentIndex(cur.siblingAtColumn(0))
-  super().keyboardSearch(text)
+  # U3 type-ahead: typing jumps to the next name starting with the typed
+  # text (case-insensitive). Keys typed within the keyboard input interval
+  # extend the search; repeating one letter cycles through its matches.
+  # Searches the model's name list directly: no per-row model calls.
+  if not text or not text.isprintable():return
+  now=time.monotonic(); interval=QApplication.keyboardInputInterval()/1000.0
+  buf=getattr(self,'_ta_text','') if now-getattr(self,'_ta_time',0.0)<=interval else ''
+  self._ta_time=now; buf+=text
+  if len(buf)>1 and buf==buf[0]*len(buf):buf=buf[0]
+  self._ta_text=buf
+  m=self.pane.model; entries=m.visible_entries(); n=len(entries)
+  if not n:return
+  cur=self.currentIndex().row() if self.currentIndex().isValid() else -1
+  needle=buf.casefold(); start=cur+1 if len(buf)==1 else max(cur,0)
+  for k in range(n):
+   row=(start+k)%n
+   if entries[row].fold.startswith(needle):
+    idx=self.model().index(row,0,self.rootIndex())
+    self.selectionModel().setCurrentIndex(idx,QItemSelectionModel.SelectionFlag.ClearAndSelect|QItemSelectionModel.SelectionFlag.Rows); self.scrollTo(idx); return
  def startDrag(self,supported):
   # QFileSystemModel's platform drag implementation is not reliable for FUSE
   # paths on Wayland. Publish explicit file URLs plus NIRUORG pane identity.
@@ -1500,7 +1515,7 @@ class Main(QMainWindow):
  def keybinding_rows(self):
   return [
    ('Files','Ctrl+N','New file / folder'),('Files','Ctrl+Shift+N','New folder'),('Files','F2','Rename'),('Files','Ctrl+C','Copy'),('Files','Ctrl+X','Cut'),('Files','Ctrl+V','Paste'),('Files','Delete','Move to Trash'),('Files','Shift+Delete','Delete Permanently…'),('Files','Alt+Return','Properties'),('Files','Ctrl+A','Select all'),
-   ('Navigation','Alt+Left','Back'),('Navigation','Alt+Right','Forward'),('Navigation','Backspace','Parent folder'),('Navigation','Alt+Home','Home'),('Navigation','Ctrl+L','Location'),('Navigation','Ctrl+P','Jump'),('Navigation','F5','Refresh'),
+   ('Navigation','Type a name','Jump to the next matching name'),('Navigation','Click path bar','Type a location'),('Navigation','Alt+Left','Back'),('Navigation','Alt+Right','Forward'),('Navigation','Backspace','Parent folder'),('Navigation','Alt+Home','Home'),('Navigation','Ctrl+L','Location'),('Navigation','Ctrl+P','Jump'),('Navigation','F5','Refresh'),
    ('Search','/','Filter current folder'),('Search','Ctrl+F','Find files / content'),('Actions','Ctrl+K','Command palette'),('Tabs','Ctrl+T','New tab'),('Tabs','Ctrl+W','Close tab'),('Tabs','Ctrl+Shift+T','Reopen closed tab'),('Actions','Ctrl+Alt+T','Open terminal here'),('Actions','Ctrl+Shift+C','Copy path'),('Actions','Ctrl+Shift+V','Clipboard inspector'),
    ('Views','Ctrl+1','List'),('Views','Ctrl+2','Split'),('Views','Ctrl+3','Gallery'),('Views','Ctrl+4','Smart view'),('Views','Space','Inspector'),('Views','F3','Quick Look'),('Views','F10','Focus browser'),('Views','F11','Slideshow'),('Views','Ctrl+H','Hidden files'),('Views','Tab','Sidebar'),
    ('Organizer','Ctrl+D','Work Basket'),('Organizer','Ctrl+Alt+2','Temporary split'),('Organizer','Ctrl+Shift+B','Shortcut current folder'),('Organizer','Ctrl+Shift+Right','Send to other pane'),('Organizer','Ctrl+Shift+M','Compare panes'),('Operations','Ctrl+Z','Undo transfer'),('Operations','Ctrl+Shift+Q','Operation queue'),('Operations','Ctrl+Shift+H','Operation history'),('Media','Ctrl+Shift+P','Play with MPV')]

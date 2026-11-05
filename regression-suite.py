@@ -79,6 +79,7 @@ TESTS = [
     ('breadcrumbs-067-test.py', True, 30),
     ('activity-068-test.py', True, 30),
     ('sidebar-069-test.py', True, 30),
+    ('keyboard-070-test.py', True, 30),
 ]
 
 def main() -> int:
