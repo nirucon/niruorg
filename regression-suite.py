@@ -71,6 +71,7 @@ TESTS = [
     ('transfer-integrity-030-test.py', False, 0),
     ('installer-safety-030-test.py', False, 0),
     ('ssh-helper-safety-030-test.py', False, 0),
+    ('status-count-065-test.py', True, 30),
 ]
 
 def main() -> int:

@@ -499,7 +499,11 @@ class Filter(QSortFilterProxyModel):
  def filterAcceptsRow(self,row,parent):
   pat=self.filterRegularExpression().pattern()
   if not pat:return True
-  idx=self.sourceModel().index(row,0,parent); return self.filterRegularExpression().match(self.sourceModel().fileName(idx)).hasMatch()
+  # Filter only the listed folder's entries. Its ancestors must stay accepted,
+  # otherwise the view root disappears and every filter shows zero rows.
+  m=self.sourceModel()
+  if parent!=m.index(m.rootPath()):return True
+  idx=m.index(row,0,parent); return self.filterRegularExpression().match(self.sourceModel().fileName(idx)).hasMatch()
 class BrowserTree(QTreeView):
  MIME='application/x-niruorg-files'
  def __init__(self,pane):
@@ -620,6 +624,12 @@ class FilePane(QWidget):
   self.history=[]; self.hist=-1
   for w in (self.path,self.filter,self.backb,self.upb,self.location_stack):w.installEventFilter(self)
   lay=QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.setSpacing(0); lay.addWidget(self.tabs); lay.addLayout(top); lay.addWidget(self.view,1)
+  # The listing is asynchronous: keep the status bar count, size and
+  # selection summary in step with every batch, completion and filter change.
+  for sig in (self.proxy.rowsInserted,self.proxy.rowsRemoved,self.proxy.modelReset,self.proxy.layoutChanged):sig.connect(self._listing_changed)
+  self.model.directoryLoaded.connect(self._listing_changed)
+ def _listing_changed(self,*_):
+  if self.owner.active is self:self.owner.schedule_status()
  def eventFilter(self,obj,event):
   if event.type() in (QEvent.Type.FocusIn,QEvent.Type.MouseButtonPress):self.owner.set_active(self)
   return super().eventFilter(obj,event)
@@ -785,7 +795,7 @@ class FilePane(QWidget):
    if idx<len(parts)-1:
     sep=QLabel('›'); sep.setObjectName('crumbsep'); self.crumb_lay.addWidget(sep)
   self.crumb_lay.addStretch(1)
- def set_filter(self,t):self.proxy.setFilterRegularExpression(QRegularExpression(QRegularExpression.escape(t),QRegularExpression.PatternOption.CaseInsensitiveOption))
+ def set_filter(self,t):self.proxy.setFilterRegularExpression(QRegularExpression(QRegularExpression.escape(t),QRegularExpression.PatternOption.CaseInsensitiveOption)); self._listing_changed()
  def _apply_root(self,path,attempt=0):
   # QFileSystemModel populates directories asynchronously. setRootPath() both
   # requests the directory and returns its source index; never use an invalid
@@ -1318,6 +1328,13 @@ class Main(QMainWindow):
 
  def selected(self):return self.active.selected()
  def current_dir(self):return self.active.current
+ def schedule_status(self):
+  # Coalesce bursts of listing signals into one status refresh. The timer is
+  # single-shot and only armed by a change, so an idle window does no work.
+  t=getattr(self,'_status_timer',None)
+  if t is None:
+   t=self._status_timer=QTimer(self); t.setSingleShot(True); t.setInterval(60); t.timeout.connect(self.update_status)
+  if not t.isActive():t.start()
  def update_status(self):
   s=self.selected(); parts=[]; root=self.active.view.rootIndex(); count=self.active.proxy.rowCount(root)
   if self.pane2.isVisible():parts.append(f'{self.pane_side(self.active).capitalize()} active')
