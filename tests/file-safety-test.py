@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source, find_def, def_source  # noqa: E402
 from pathlib import Path
 import ast, tempfile, zipfile, tarfile, io, stat, os
-app=Path(__file__).resolve().parents[1]/'niruorg/app.py'
-src=app.read_text(); tree=ast.parse(src)
-names={'_safe_archive_target','safe_extract_zip','safe_extract_tar'}
-nodes=[n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name in names]
+src=app_source()
+names=['_safe_archive_target','safe_extract_zip','safe_extract_tar']
+found=[find_def(n,top_level=True) for n in names]; app=found[0][2]
+nodes=[node for node,_,_ in found]
 mod=ast.Module(body=nodes,type_ignores=[]); ns={'Path':Path,'zipfile':zipfile,'tarfile':tarfile,'stat':stat}
 exec(compile(ast.fix_missing_locations(mod),str(app),'exec'),ns)
 with tempfile.TemporaryDirectory() as td:

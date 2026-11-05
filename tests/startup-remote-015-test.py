@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source, find_def, def_source  # noqa: E402
 from pathlib import Path
 import ast,re
-src=Path('niruorg/app.py').read_text()
+src=app_source()
 assert "VERSION='0.5.1'" in src
 assert 'class RemoteProbeWorker(QRunnable)' in src
 assert 'self._remote_probe_pool.setMaxThreadCount(2)' in src
@@ -11,11 +12,9 @@ assert "self.status.setText(f'{pane.remote_name} · Checking…')" in src
 paths=Path('niruorg/core/paths.py').read_text()
 assert 'path_is_mounted' in paths and "Path('/proc/self/mountinfo')" in paths
 # Startup/sidebar must not synchronously probe saved paths or invoke rclone.
-tree=ast.parse(src)
 def body(name):
- for n in ast.walk(tree):
-  if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name==name:return ast.get_source_segment(src,n) or ''
- return ''
+ try:return def_source(name,kinds=(ast.FunctionDef,ast.AsyncFunctionDef))
+ except LookupError:return ''
 sidebar=body('build_sidebar')
 assert '.exists()' not in sidebar
 assert '.iterdir()' not in sidebar

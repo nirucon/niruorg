@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source, find_def, def_source  # noqa: E402
 """Qt-free integration checks of the actual TransferWorker method bodies.
 
 The worker class is extracted from the app AST with minimal signal stubs; file
@@ -23,9 +24,7 @@ class WorkerSignals:
         self.progress = SignalSink(); self.activity = SignalSink()
 class QRunnable: pass
 
-app = Path(__file__).resolve().parents[1] / 'niruorg' / 'app.py'
-tree = ast.parse(app.read_text())
-node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'TransferWorker')
+node, _, app = find_def('TransferWorker', kinds=(ast.ClassDef,), top_level=True)
 ns = dict(QRunnable=QRunnable, WorkerSignals=WorkerSignals, Path=Path,
           TransferSafetyError=TransferSafetyError,
           verified_partial_offset=verified_partial_offset,

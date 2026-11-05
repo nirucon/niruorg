@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
-app=(Path(__file__).resolve().parents[1]/'niruorg/app.py').read_text()
+app=app_source()
 assert "def manage_clouds" in app and "def open_cloud" in app and "def unmount_cloud" in app
 assert "rclone" in app and "Google Drive" in app and "OneDrive / Microsoft 365" in app
 assert "--vfs-cache-mode','writes','--daemon'" in app

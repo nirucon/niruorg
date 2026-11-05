@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
 import ast,re
 root=Path(__file__).resolve().parents[1]
-app=(root/'niruorg/app.py').read_text()
+app=app_source()
 install=(root/'install.sh').read_text(); suite=(root/'regression-suite.py').read_text()
 smoke=(root/'tests/gui-smoke-test.py').read_text(); shortcut=(root/'tests/shortcut-test.py').read_text(); delete_test=(root/'tests/permanent-delete-test.py').read_text()
 v=re.search(r"VERSION='([^']+)'",app).group(1)

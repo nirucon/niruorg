@@ -1,8 +1,10 @@
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source, find_def, def_source  # noqa: E402
 from pathlib import Path
 import ast
-s=(Path(__file__).resolve().parents[1]/'niruorg'/'app.py').read_text()
+s=app_source()
 assert "VERSION='0.5.1'" in s
-tree=ast.parse(s)
+_node,_module_text,_=find_def('_ssh_agent_environment')
+tree=ast.parse(_module_text)  # the module that defines the SSH agent parser
 imports=set()
 for node in tree.body:
     if isinstance(node, ast.Import):

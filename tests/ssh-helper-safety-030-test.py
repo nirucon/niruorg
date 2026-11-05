@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
 app=Path(__file__).resolve().parents[1]/'niruorg'/'app.py'
-s=app.read_text()
+s=app_source()
 segment=s[s.index('  def unlock_prompt(n,v,retry):'):s.index('  def finish(ok,detail=',s.index('  def unlock_prompt(n,v,retry):'))]
 assert "tempfile.mkstemp(prefix='niruorg-askpass-'" in segment
 assert "with os.fdopen(helper_fd,'w',encoding='utf-8')" in segment

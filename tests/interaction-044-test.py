@@ -1,6 +1,6 @@
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
-p=Path(__file__).resolve().parents[1]/'niruorg/app.py'
-s=p.read_text()
+s=app_source()
 assert "VERSION='0.5.1'" in s
 assert 'def _ssh_agent_environment(self,create=False):' in s
 assert "ssh-agent-{os.getpid()}.sock" in s

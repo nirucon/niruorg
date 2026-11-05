@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 """Static regression contract for 0.5.1 FUSE ownership/lifecycle safety."""
 from pathlib import Path
-s=(Path(__file__).resolve().parents[1]/'niruorg/app.py').read_text()
+s=app_source()
 assert "VERSION='0.5.1'" in s
 for name in ('_claim_mount','_release_mount','_detach_remote_models_for_shutdown','_unmount_owned_path','_cleanup_owned_mounts'):
     assert f'def {name}' in s, name

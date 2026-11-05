@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source, find_def, def_source  # noqa: E402
 """FileZilla XML import and portable server-config regression."""
 from pathlib import Path
 import ast, base64, tempfile, xml.etree.ElementTree as ET
 
 root = Path(__file__).resolve().parents[1]
-source = (root / 'niruorg/app.py').read_text(encoding='utf-8')
+source = app_source()
 
 # The application-wide filter must fail open around deleted Qt wrappers. The
 # native file picker creates/destroys layouts, which used to abort import.
 assert 'except (RuntimeError,ReferenceError):' in source
 assert 'Internal C++ object already deleted' in source
-main_node = next(n for n in ast.walk(ast.parse(source))
-                 if isinstance(n, ast.ClassDef) and n.name == 'Main')
-main_filter = next(n for n in main_node.body
-                   if isinstance(n, ast.FunctionDef) and n.name == 'eventFilter')
-assert 'super().eventFilter' not in ast.get_source_segment(source, main_filter)
+# Main's application-wide eventFilter (the one that feeds input diagnostics).
+filters = []
+for path in __import__('source_contract').source_files():
+    text = path.read_text(encoding='utf-8')
+    for n in ast.walk(ast.parse(text)):
+        if isinstance(n, ast.FunctionDef) and n.name == 'eventFilter':
+            seg = ast.get_source_segment(text, n) or ''
+            if '_pane_for_event_target' in seg:
+                filters.append(seg)
+assert len(filters) == 1, len(filters)
+assert 'super().eventFilter' not in filters[0]
 
 # Sidebar places are real XDG locations and cloud folders are shown only when
 # they exist. No hard-coded Desktop placeholder.
@@ -34,12 +41,10 @@ assert "if key=='servers_json':return self._load_servers()" in source
 assert "if key=='servers_json':self._write_server_store(data)" in source
 
 # Parse the actual FileZilla export shape with the production parser.
-tree = ast.parse(source)
-node = next(n for n in ast.walk(tree)
-            if isinstance(n, ast.FunctionDef) and n.name == '_filezilla_sites')
+node, _, node_path = find_def('_filezilla_sites')
 module = ast.Module(body=[node], type_ignores=[])
 namespace = {'ET': ET, 'base64': base64}
-exec(compile(ast.fix_missing_locations(module), str(root / 'niruorg/app.py'), 'exec'), namespace)
+exec(compile(ast.fix_missing_locations(module), str(node_path), 'exec'), namespace)
 parser = namespace['_filezilla_sites']
 
 xml = '''<?xml version="1.0" encoding="UTF-8"?>

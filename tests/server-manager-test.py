@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
-s=Path('niruorg/app.py').read_text(); a=s.index(' def manage_servers(self,initial_name=None,initial_action=None,target_pane=None):'); b=s.index(' def toggle_hidden(self):',a); m=s[a:b]
+s=app_source(); a=s.index(' def manage_servers(self,initial_name=None,initial_action=None,target_pane=None):'); b=s.index(' def toggle_hidden(self):',a); m=s[a:b]
 for token in ["QPushButton('Add connection')","QPushButton('Edit…')","QPushButton('Duplicate…')","QPushButton('Remove…')","QPushButton('Test')","QPushButton('Details')","QPushButton('Connect / Browse')","QPushButton('Disconnect')","QPushButton('Cancel operation')",'QProcess(d)','ConnectTimeout=','BatchMode=yes','SFTP / SSH (recommended)','OpenSSH / Auto (recommended)','SSH key','Password','FTP','FTPS · explicit TLS','FTPS · implicit TLS','secret-tool','rclone_config','0o600','QLineEdit.EchoMode.Password','Tailscale · MagicDNS / 100.x IP','Tailscale SSH','ProxyJump','passive','tls_verify']:
  assert token in m, token
 assert '.finished.connect(' in m and '.errorOccurred.connect(' in m

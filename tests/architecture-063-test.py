@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 import sys as _sys, pathlib as _pathlib; _sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parents[1]))  # repository root
 import os
 import tempfile
@@ -18,6 +19,6 @@ with tempfile.TemporaryDirectory() as td:
     log_error('architecture-test', RuntimeError('technical detail'))
     log = error_log_path().read_text()
     assert 'architecture-test' in log and 'technical detail' in log
-    app = Path('niruorg/app.py').read_text()
+    app = app_source()
     assert 'from .core.paths import' in app and 'from .utils.logging import log_error' in app
 print('architecture extraction contract OK')

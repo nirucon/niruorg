@@ -1,5 +1,6 @@
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
-s=Path('niruorg/app.py').read_text()
+s=app_source()
 start=s.index('  def after_mount(n,mp):')
 end=s.index('  def run_async(', start)
 block=s[start:end]

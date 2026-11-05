@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
-s=Path('niruorg/app.py').read_text()
+s=app_source()
 find=s[s.index(' def find_files'):s.index(' def err(self,e):')]
 compare=s[s.index(' def compare_panes'):s.index(' def choose_conflict_policy')]
 assert 'SearchWorker(' in find

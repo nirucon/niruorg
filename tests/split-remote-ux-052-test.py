@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
-s=Path('niruorg/app.py').read_text()
+s=app_source()
 for needle in [
  "VERSION='0.5.1'", "def open_sidebar_location", "def open_sidebar_other",
  "other=m.addAction(self.open_other_label())", "def _transfer_to_other_pane",

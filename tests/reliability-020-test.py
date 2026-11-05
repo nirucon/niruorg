@@ -1,5 +1,6 @@
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
-s=(Path(__file__).resolve().parents[1]/'niruorg/app.py').read_text()
+s=app_source()
 need=["VERSION='0.5.1'",'class MetadataWorker(QRunnable)','def _path_endpoint_meta','def _remote_path',"MetadataWorker('basket'","MetadataWorker('compare'","MetadataWorker('conflicts'",'Checking destination…','Available','Offline','Missing','Unavailable']
 for x in need: assert x in s,x
 # GUI-thread regressions fixed in 0.5.1

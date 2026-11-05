@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
-s=(Path(__file__).resolve().parents[1]/'niruorg/app.py').read_text()
+s=app_source()
 checks={
  'version':"VERSION='0.5.1'" in s,
  'connection editor parented to manager':"box=NiruDialog(d); box.setWindowTitle(title); box.setModal(True)" in s,

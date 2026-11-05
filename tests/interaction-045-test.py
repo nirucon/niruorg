@@ -1,7 +1,8 @@
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
 import re
 root=Path(__file__).resolve().parents[1]
-app=(root/'niruorg/app.py').read_text()
+app=app_source()
 install=(root/'install.sh').read_text()
 assert "VERSION='0.5.1'" in app
 assert "VERSION=\"0.5.1\"" in install

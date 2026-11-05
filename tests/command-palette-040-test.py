@@ -1,7 +1,7 @@
+import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source, find_def, def_source  # noqa: E402
 from pathlib import Path
 import ast
-src=(Path(__file__).resolve().parents[1]/'niruorg/app.py').read_text()
-tree=ast.parse(src)
+src=app_source()
 assert "d.setWindowTitle('Commands')" in src
 assert "query.textChanged.connect(refresh)" in src
 assert "query.returnPressed.connect(activate)" in src
