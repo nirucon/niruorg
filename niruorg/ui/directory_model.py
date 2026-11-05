@@ -189,7 +189,7 @@ class _WatcherObject(QObject):
         if self.path:
             self.watcher.removePath(self.path)
         self.path = path
-        if path:
+        if path and os.access(path, os.R_OK | os.X_OK):  # unreadable: nothing to watch
             self.watcher.addPath(path)
 
 

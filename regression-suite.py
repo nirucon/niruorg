@@ -80,6 +80,7 @@ TESTS = [
     ('activity-068-test.py', True, 30),
     ('sidebar-069-test.py', True, 30),
     ('keyboard-070-test.py', True, 30),
+    ('pane-states-071-test.py', True, 30),
 ]
 
 def main() -> int:
