@@ -73,6 +73,7 @@ TESTS = [
     ('ssh-helper-safety-030-test.py', False, 0),
     ('status-count-065-test.py', True, 30),
     ('large-listing-066-test.py', True, 90),
+    ('breadcrumbs-067-test.py', True, 30),
 ]
 
 def main() -> int:

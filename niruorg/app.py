@@ -671,12 +671,23 @@ class PaneTabBar(QTabBar):
    m.addAction('Close tab',lambda:self.pane.close_tab(i)); m.addAction('Close other tabs',lambda:self.pane.close_other_tabs(i)); m.addAction('Close tabs to the right',lambda:self.pane.close_tabs_right(i))
   m.exec(self.mapToGlobal(pos))
 
+class CrumbBar(QWidget):
+ # Clicking the empty part of the path bar edits the location (as Ctrl+L).
+ # A resize that changes how many trailing segments fit rebuilds the bar.
+ def __init__(self,pane):
+  super().__init__(pane); self.pane=pane; self.setCursor(Qt.CursorShape.IBeamCursor); self.setToolTip('Click to type a location (Ctrl+L)')
+ def mousePressEvent(self,event):
+  if event.button()==Qt.MouseButton.LeftButton:event.accept(); self.pane.edit_location(); return
+  super().mousePressEvent(event)
+ def resizeEvent(self,event):
+  super().resizeEvent(event)
+  if self.pane._crumb_fit_changed():QTimer.singleShot(0,self.pane.update_breadcrumbs)
 class FilePane(QWidget):
  def __init__(self,owner):
   super().__init__(); self.owner=owner; self.setObjectName('filePane'); self.setProperty('activePane',False); self.current=Path.home(); self.remote_name=None; self.remote_protocol=None; self.remote_mount=None; self.remote_root=None; self.model=DirectoryModel(self); self.model.date_formatter=self._format_date; self.icons=SemanticIconProvider(owner.palette()); self.model.setIconProvider(self.icons); self.model.setFilter(QDir.Filter.AllEntries|QDir.Filter.NoDotAndDotDot|QDir.Filter.AllDirs)
   self.proxy=Filter(self); self.proxy.setSourceModel(self.model); self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
   self.view=BrowserTree(self); self.view.setModel(self.proxy); self.view.setSortingEnabled(True); self.view.sortByColumn(0,Qt.SortOrder.AscendingOrder); self.view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection); self.view.setUniformRowHeights(True); self.view.setAnimated(False); self.view.setIndentation(14); self.view.setRootIsDecorated(False); self.view.header().setStretchLastSection(False); self.view.header().setSectionResizeMode(0,QHeaderView.ResizeMode.Stretch); self.view.header().setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents); self.view.header().setSectionResizeMode(2,QHeaderView.ResizeMode.ResizeToContents); self.view.header().setSectionResizeMode(3,QHeaderView.ResizeMode.ResizeToContents); self.view.setDragEnabled(True); self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); self.view.customContextMenuRequested.connect(lambda p:owner.context_menu(self,p)); self.view.doubleClicked.connect(self.activate); self.view.clicked.connect(lambda *_:owner.set_active(self)); self.view.selectionModel().selectionChanged.connect(lambda *_:(owner.update_status(),owner.update_quicklook()))
-  self.path=QLineEdit(); self.path.returnPressed.connect(self.commit_location); self.path.hide(); self.crumb=QWidget(); self.crumb_lay=QHBoxLayout(self.crumb); self.crumb_lay.setContentsMargins(0,0,0,0); self.crumb_lay.setSpacing(1); self.filter=QLineEdit(); self.filter.setPlaceholderText('Filter'); self.filter.setMaximumWidth(160); self.filter.textChanged.connect(self.set_filter)
+  self.path=QLineEdit(); self.path.returnPressed.connect(self.commit_location); self.path.hide(); self.crumb=CrumbBar(self); self._crumb_keep=None; self.crumb_lay=QHBoxLayout(self.crumb); self.crumb_lay.setContentsMargins(0,0,0,0); self.crumb_lay.setSpacing(1); self.filter=QLineEdit(); self.filter.setPlaceholderText('Filter'); self.filter.setMaximumWidth(160); self.filter.textChanged.connect(self.set_filter)
   self.backb=QToolButton(); self.backb.setText('‹'); self.backb.setToolTip('Back'); self.backb.clicked.connect(self.back); self.upb=QToolButton(); self.upb.setText('↑'); self.upb.setToolTip('Parent folder'); self.upb.clicked.connect(self.up); self.close_split=QToolButton(); self.close_split.setText('×'); self.close_split.setToolTip('Close split view (Ctrl+2)'); self.close_split.clicked.connect(lambda:owner.close_split(self)); self.close_split.hide()
   self.tabs=PaneTabBar(self); self.tabs.setObjectName('paneTabs'); self.tabs.setDocumentMode(True); self.tabs.setMovable(True); self.tabs.setTabsClosable(False); self.tabs.setExpanding(False); self.tabs.setElideMode(Qt.TextElideMode.ElideRight); self.tabs.setUsesScrollButtons(True); self._tab_loading=False; self._tab_states=[]; self._closed_tabs=[]; self.tabs.currentChanged.connect(self._switch_tab); self.tabs.tabCloseRequested.connect(self.close_tab); self.tabs.tabBarClicked.connect(lambda *_:self.owner.set_active(self)); self.tabs.addTab('Home'); self._tab_states.append({}); self.tabs.setTabToolTip(0,str(Path.home())); self._install_tab_close(0)
   self.location_stack=QStackedWidget(); self.location_stack.addWidget(self.crumb); self.location_stack.addWidget(self.path)
@@ -698,6 +709,11 @@ class FilePane(QWidget):
   if self.owner.active is self:self.owner.schedule_status()
  def eventFilter(self,obj,event):
   if event.type() in (QEvent.Type.FocusIn,QEvent.Type.MouseButtonPress):self.owner.set_active(self)
+  if obj is self.path and self.location_stack.currentWidget() is self.path:
+   # The typed location is a temporary editor: Escape or leaving it restores
+   # the breadcrumbs without navigating.
+   if event.type()==QEvent.Type.KeyPress and event.key()==Qt.Key.Key_Escape:self.cancel_location(); self.view.setFocus(); return True
+   if event.type()==QEvent.Type.FocusOut and event.reason()!=Qt.FocusReason.PopupFocusReason:QTimer.singleShot(0,self.cancel_location)
   return super().eventFilter(obj,event)
  def _tab_state(self):
   return {'path':str(self.current),'remote_name':self.remote_name,'remote_protocol':self.remote_protocol,'remote_mount':str(self.remote_mount) if self.remote_mount else '','remote_root':self.remote_root or '/','history':list(self.history),'hist':self.hist,'filter':self.filter.text(),'pinned':bool(self._tab_states[self.tabs.currentIndex()].get('pinned')) if 0 <= self.tabs.currentIndex() < len(self._tab_states) else False}
@@ -844,21 +860,78 @@ class FilePane(QWidget):
   self.path.setText(str(self.current)); self.location_stack.setCurrentWidget(self.path); self.path.setFocus(); self.path.selectAll()
  def commit_location(self):
   value=self.path.text(); self.location_stack.setCurrentWidget(self.crumb); self.go(value)
+ def cancel_location(self):
+  if self.location_stack.currentWidget() is self.path:self.path.setText(str(self.current)); self.location_stack.setCurrentWidget(self.crumb)
+ def _crumb_segments(self):
+  # (label, target path or None, tooltip). Remote panes show the logical
+  # remote path; only folders inside the mount are clickable.
+  if self.is_remote():
+   disp=self.display_path(); root=str(self.remote_root or '/').rstrip('/') or '/'
+   parts=[x for x in disp.split('/') if x]; rparts=[x for x in root.split('/') if x]
+   segs=[('/',None if rparts else str(self.remote_mount),'/')]
+   for i,part in enumerate(parts):
+    logical='/'+'/'.join(parts[:i+1]); target=None
+    if i+1>=len(rparts):target=str(Path(self.remote_mount).joinpath(*parts[len(rparts):i+1])) if i+1>len(rparts) else str(self.remote_mount)
+    segs.append((part,target,f'{self.remote_name}:{logical}'))
+   return segs
+  p=self.current; parts=list(p.parts); acc=Path(parts[0]) if parts else Path('/'); segs=[]
+  for idx,part in enumerate(parts):
+   if idx:acc=acc/part
+   segs.append(('/' if idx==0 and part=='/' else (part or '/'),str(acc),str(acc)))
+  return segs
+ def _crumb_widths(self,segs):
+  fm=self.crumb.fontMetrics(); pad=24; sep=fm.horizontalAdvance('›')+8
+  return [min(fm.horizontalAdvance(label),240)+pad+sep for label,_,_ in segs]
+ def _crumb_keep_count(self,segs=None):
+  # The first segment, an "…" menu and the last 3 segments; 2 (or, in a very
+  # narrow pane, 1) when 3 do not fit. Shown segments are never elided.
+  segs=segs if segs is not None else self._crumb_segments()
+  if len(segs)<=4:return len(segs)-1
+  w=self._crumb_widths(segs); avail=max(0,self.crumb.width()-self._crumb_chip_width()-40)
+  for keep in (3,2):
+   if w[0]+44+sum(w[-keep:])<=avail:return keep
+  return 1 if self.crumb.width()>0 and w[0]+44+sum(w[-2:])>avail else 2
+ def _crumb_chip_width(self):
+  return min(self.crumb.fontMetrics().horizontalAdvance(self.endpoint_label())+24,220)
+ def _crumb_fit_changed(self):
+  try:return self._crumb_keep is not None and self._crumb_keep_count()!=self._crumb_keep
+  except Exception:return False
+ def _endpoint_tooltip(self):
+  if self.is_remote():
+   host=''
+   try:host=str(self.owner._json_setting('servers_json').get(self.remote_name,{}).get('host',''))
+   except Exception:pass
+   return f'Remote connection · {self.remote_name}'+(f' · {host}' if host else '')+f' · {self.remote_protocol}'
+  return f'Local machine · {socket.gethostname()}'
+ def _crumb_button(self,label,target,tip):
+  b=QToolButton(); fm=b.fontMetrics(); shown=fm.elidedText(label,Qt.TextElideMode.ElideMiddle,240) if fm.horizontalAdvance(label)>240 else label
+  b.setText(shown.replace('&','&&')); b.setToolTip(tip); b.setSizePolicy(QSizePolicy.Policy.Fixed,QSizePolicy.Policy.Preferred)
+  if target is None:b.setEnabled(False)
+  else:
+   b.clicked.connect(lambda checked=False,x=target:self.go(x))
+   if not self.is_remote():b.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); b.customContextMenuRequested.connect(lambda pos,x=target:self.owner.path_actions(x))
+  return b
  def update_breadcrumbs(self):
   while self.crumb_lay.count():
    item=self.crumb_lay.takeAt(0); w=item.widget()
    if w:w.deleteLater()
-  if self.is_remote():
-   tag=QToolButton(); tag.setText(self.endpoint_label()); tag.setToolTip(f'Remote connection · {self.remote_name}'); tag.setEnabled(False); self.crumb_lay.addWidget(tag)
-   sep=QLabel('›'); sep.setObjectName('crumbsep'); self.crumb_lay.addWidget(sep); remote_path=QLabel(self.display_path()); remote_path.setToolTip('Remote path'); self.crumb_lay.addWidget(remote_path); self.crumb_lay.addStretch(1); return
-  tag=QToolButton(); tag.setText(self.endpoint_label()); tag.setToolTip('Local machine'); tag.setEnabled(False); self.crumb_lay.addWidget(tag)
+  tag=QToolButton(); tag.setText(self.endpoint_label()); fm=tag.fontMetrics()
+  if fm.horizontalAdvance(tag.text())>196:tag.setText(fm.elidedText(tag.text(),Qt.TextElideMode.ElideRight,196))
+  tag.setToolTip(self._endpoint_tooltip()); tag.setEnabled(False); self.crumb_lay.addWidget(tag)
   sep=QLabel('›'); sep.setObjectName('crumbsep'); self.crumb_lay.addWidget(sep)
-  p=self.current; parts=list(p.parts); acc=Path(parts[0]) if parts else Path('/')
-  for idx,part in enumerate(parts):
-   if idx:acc=acc/part
-   label='/' if idx==0 and part=='/' else (part or '/')
-   b=QToolButton(); b.setText(label); target=str(acc); b.clicked.connect(lambda checked=False,x=target:self.go(x)); b.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); b.customContextMenuRequested.connect(lambda pos,x=target:self.owner.path_actions(x)); self.crumb_lay.addWidget(b)
-   if idx<len(parts)-1:
+  segs=self._crumb_segments(); keep=self._crumb_keep_count(segs); self._crumb_keep=keep
+  hidden=segs[1:len(segs)-keep] if len(segs)>keep+1 else []
+  shown=[segs[0]]+(['…'] if hidden else [])+segs[len(segs)-keep:] if hidden else segs
+  for idx,seg in enumerate(shown):
+   if seg=='…':
+    more=QToolButton(); more.setText('…'); more.setObjectName('crumbMore'); more.setToolTip('Show the hidden path segments'); more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); more.setStyleSheet('QToolButton::menu-indicator{image:none;width:0}')
+    menu=QMenu(more)
+    for label,target,tip in hidden:
+     act=menu.addAction(label); act.setToolTip(tip); act.setEnabled(target is not None)
+     if target is not None:act.triggered.connect(lambda checked=False,x=target:self.go(x))
+    more.setMenu(menu); self.crumb_lay.addWidget(more)
+   else:self.crumb_lay.addWidget(self._crumb_button(*seg))
+   if idx<len(shown)-1:
     sep=QLabel('›'); sep.setObjectName('crumbsep'); self.crumb_lay.addWidget(sep)
   self.crumb_lay.addStretch(1)
  def set_filter(self,t):self.model.set_name_filter(t); self._listing_changed()
@@ -1369,6 +1442,7 @@ class Main(QMainWindow):
  def refresh_current(self):
   self.invalidate_quicklook(); self.active.go(self.active.current,False); self.update_status()
  def escape_action(self):
+  if self.active.location_stack.currentWidget() is self.active.path:self.active.cancel_location(); self.active.view.setFocus(); return
   if self.active.filter.hasFocus() or self.active.filter.text():self.active.filter.clear(); self.active.view.setFocus(); return
   self.active.view.clearSelection(); self.update_status()
  def quick_create(self):
