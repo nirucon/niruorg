@@ -46,3 +46,9 @@ assert hasattr(w,'show_keybindings') and len(w.keybinding_rows()) >= 30
 assert hasattr(w,'quick_create') and hasattr(w,'refresh_current') and hasattr(w.pane1,'forward')
 old=w.theme; w.apply_theme(); assert w.theme==old
 print(f'GUI smoke OK · {VERSION}')
+# 0.6.0: Help -> About and Help -> System diagnostics used to raise
+# (info_dialog / qVersion were undefined). Open and close both.
+from PySide6.QtWidgets import QApplication as _QA
+_closer = QTimer(); _closer.timeout.connect(lambda: _QA.activeModalWidget() and _QA.activeModalWidget().reject()); _closer.start(100)
+w2 = Main(); w2.show_about(); w2.system_diagnostics(); _closer.stop(); w2.close(); app.processEvents()
+print('About / System diagnostics open OK')

@@ -2,6 +2,7 @@
 import os, sys, shutil, subprocess, mimetypes, zipfile, tarfile, stat, json, urllib.request, urllib.parse, base64, shlex, socket, tempfile, time, re, hashlib, uuid, xml.etree.ElementTree as ET
 from pathlib import Path
 from PySide6.QtCore import (
+    qVersion,
     QItemSelectionModel,
     QPointF,
     Qt,
@@ -413,7 +414,7 @@ class Main(SidebarMixin, QuickLookMixin, MenuMixin, RemoteMixin, TransferUIMixin
                 pane.view.set_row_height(h)
 
     def show_about(self):
-        self.info_dialog(
+        self.info(
             'About NIRUORG',
             f'<b>NIRUORG {VERSION}</b><br><br>Minimal but powerful file organizer for Linux.<br>Fast local and remote file management with a keyboard-first workflow and full mouse support.<br><br>Created by Nicklas Rudolfsson.',
         )
