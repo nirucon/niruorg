@@ -676,6 +676,9 @@ class CrumbBar(QWidget):
  # A resize that changes how many trailing segments fit rebuilds the bar.
  def __init__(self,pane):
   super().__init__(pane); self.pane=pane; self.setCursor(Qt.CursorShape.IBeamCursor); self.setToolTip('Click to type a location (Ctrl+L)')
+  # Do not let full-width segments dictate the pane's minimum width (split
+  # view); fewer trailing segments are shown instead when space is short.
+  self.setMinimumWidth(80); self.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred)
  def mousePressEvent(self,event):
   if event.button()==Qt.MouseButton.LeftButton:event.accept(); self.pane.edit_location(); return
   super().mousePressEvent(event)
@@ -912,22 +915,47 @@ class FilePane(QWidget):
    if idx:acc=acc/part
    segs.append(('/' if idx==0 and part=='/' else (part or '/'),str(acc),str(acc)))
   return segs
- def _crumb_widths(self,segs):
-  fm=self.crumb.fontMetrics(); pad=24; sep=fm.horizontalAdvance('›')+8
-  return [min(fm.horizontalAdvance(label),240)+pad+sep for label,_,_ in segs]
- def _crumb_keep_count(self,segs=None):
-  # The first segment, an "…" menu and the last 3 segments; 2 (or, in a very
-  # narrow pane, 1) when 3 do not fit. Shown segments are never elided.
+ def _crumb_chip_text(self,mode):
+  full=self.endpoint_label()
+  if mode=='full':return full
+  active=self.owner.active is self
+  if mode=='dot':return '●' if active else '○'
+  return ('● ' if active else '  ')+('REMOTE' if self.is_remote() else 'LOCAL')
+ def _crumb_layout(self,segs=None):
+  # Choose what fits: the endpoint chip (full, compact, dot), the first
+  # segment, an "…" menu, and the last 3, 2 or 1 segments shown in full.
   segs=segs if segs is not None else self._crumb_segments()
-  if len(segs)<=4:return len(segs)-1
-  w=self._crumb_widths(segs); avail=max(0,self.crumb.width()-self._crumb_chip_width()-40)
-  for keep in (3,2):
-   if w[0]+44+sum(w[-keep:])<=avail:return keep
-  return 1 if self.crumb.width()>0 and w[0]+44+sum(w[-2:])>avail else 2
- def _crumb_chip_width(self):
-  return min(self.crumb.fontMetrics().horizontalAdvance(self.endpoint_label())+24,220)
+  btn=self._crumb_text_width; sep=self._crumb_sep_width()
+  seg_w=[min(btn(label),btn('x'*1)+240)+sep for label,_,_ in segs]
+  avail=self.crumb.width()-4
+  if avail<=8:return ('full',min(3,len(segs)-1),True)
+  for chip in ('full','compact','dot'):
+   cw=min(btn(self._crumb_chip_text(chip)),220)+sep
+   if sum(seg_w)+cw<=avail:return (chip,len(segs)-1,True)
+   for keep in (3,2,1):
+    if keep>=len(segs)-1:continue
+    if cw+seg_w[0]+btn('…')+sep+sum(seg_w[-keep:])<=avail:return (chip,keep,True)
+  # Very narrow (split view on a small screen): the first segment joins the
+  # "…" menu so that the current folder's name stays readable.
+  return ('dot',1,False) if len(segs)>1 else ('dot',0,True)
+ def _crumb_probe(self):
+  # Hidden, styled probes measure real button/separator widths (padding and
+  # borders come from the stylesheet), so the fit decision matches layout.
+  if getattr(self,'_crumb_probe_btn',None) is None:
+   self._crumb_probe_btn=QToolButton(self.crumb); self._crumb_probe_btn.hide()
+   self._crumb_probe_sep=QLabel('›',self.crumb); self._crumb_probe_sep.setObjectName('crumbsep'); self._crumb_probe_sep.hide()
+  return self._crumb_probe_btn
+ def _crumb_text_width(self,text):
+  b=self._crumb_probe(); b.ensurePolished(); b.setText(text.replace('&','&&')); return b.sizeHint().width()+self.crumb_lay.spacing()
+ def _crumb_sep_width(self):
+  self._crumb_probe(); self._crumb_probe_sep.ensurePolished(); return self._crumb_probe_sep.sizeHint().width()+self.crumb_lay.spacing()
+ def _crumb_keep_count(self,segs=None):
+  return self._crumb_layout(segs)[1]
  def _crumb_fit_changed(self):
-  try:return self._crumb_keep is not None and self._crumb_keep_count()!=self._crumb_keep
+  try:
+   if self._crumb_keep is None:return False
+   if self._crumb_keep[0]=='dot' and abs(self.crumb.width()-getattr(self,'_crumb_built_width',0))>4:return True
+   return self._crumb_layout()!=self._crumb_keep
   except Exception:return False
  def _endpoint_tooltip(self):
   if self.is_remote():
@@ -936,8 +964,8 @@ class FilePane(QWidget):
    except Exception:pass
    return f'Remote connection · {self.remote_name}'+(f' · {host}' if host else '')+f' · {self.remote_protocol}'
   return f'Local machine · {socket.gethostname()}'
- def _crumb_button(self,label,target,tip):
-  b=QToolButton(); fm=b.fontMetrics(); shown=fm.elidedText(label,Qt.TextElideMode.ElideMiddle,240) if fm.horizontalAdvance(label)>240 else label
+ def _crumb_button(self,label,target,tip,cap=240):
+  b=QToolButton(); fm=b.fontMetrics(); shown=fm.elidedText(label,Qt.TextElideMode.ElideMiddle,cap) if fm.horizontalAdvance(label)>cap else label
   b.setText(shown.replace('&','&&')); b.setToolTip(tip); b.setSizePolicy(QSizePolicy.Policy.Fixed,QSizePolicy.Policy.Preferred)
   if target is None:b.setEnabled(False)
   else:
@@ -947,14 +975,16 @@ class FilePane(QWidget):
  def update_breadcrumbs(self):
   while self.crumb_lay.count():
    item=self.crumb_lay.takeAt(0); w=item.widget()
-   if w:w.deleteLater()
+   if w:w.hide(); w.deleteLater()  # hide now: deletion waits for the event loop
+  segs=self._crumb_segments(); chip,keep,show_first=self._crumb_layout(segs); self._crumb_keep=(chip,keep,show_first); self._crumb_built_width=self.crumb.width()
   tag=QToolButton(); tag.setText(self.endpoint_label()); fm=tag.fontMetrics()
-  if fm.horizontalAdvance(tag.text())>196:tag.setText(fm.elidedText(tag.text(),Qt.TextElideMode.ElideRight,196))
+  if chip!='full':tag.setText(self._crumb_chip_text(chip))
+  elif fm.horizontalAdvance(tag.text())>196:tag.setText(fm.elidedText(tag.text(),Qt.TextElideMode.ElideRight,196))
   tag.setToolTip(self._endpoint_tooltip()); tag.setEnabled(False); self.crumb_lay.addWidget(tag)
   sep=QLabel('›'); sep.setObjectName('crumbsep'); self.crumb_lay.addWidget(sep)
-  segs=self._crumb_segments(); keep=self._crumb_keep_count(segs); self._crumb_keep=keep
-  hidden=segs[1:len(segs)-keep] if len(segs)>keep+1 else []
-  shown=[segs[0]]+(['…'] if hidden else [])+segs[len(segs)-keep:] if hidden else segs
+  first=1 if show_first else 0
+  hidden=segs[first:len(segs)-keep] if len(segs)>keep+first else []
+  shown=(segs[:first]+['…']+segs[len(segs)-keep:]) if hidden else segs
   for idx,seg in enumerate(shown):
    if seg=='…':
     more=QToolButton(); more.setText('…'); more.setObjectName('crumbMore'); more.setToolTip('Show the hidden path segments'); more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup); more.setStyleSheet('QToolButton::menu-indicator{image:none;width:0}')
@@ -963,7 +993,14 @@ class FilePane(QWidget):
      act=menu.addAction(label); act.setToolTip(tip); act.setEnabled(target is not None)
      if target is not None:act.triggered.connect(lambda checked=False,x=target:self.go(x))
     more.setMenu(menu); self.crumb_lay.addWidget(more)
-   else:self.crumb_lay.addWidget(self._crumb_button(*seg))
+   else:
+    cap=240
+    if idx==len(shown)-1 and chip=='dot':
+     # Narrowest case: only here may the last segment be shortened.
+     used=sum(self._crumb_text_width(t)+self._crumb_sep_width() for t in ['●']+[x if x=='…' else x[0] for x in shown[:-1]])
+     pad=self._crumb_text_width('')
+     cap=max(24,min(240,self.crumb.width()-4-used-pad))
+    self.crumb_lay.addWidget(self._crumb_button(*seg,cap=cap))
    if idx<len(shown)-1:
     sep=QLabel('›'); sep.setObjectName('crumbsep'); self.crumb_lay.addWidget(sep)
   self.crumb_lay.addStretch(1)

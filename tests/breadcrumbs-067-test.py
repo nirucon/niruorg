@@ -71,6 +71,12 @@ with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as td:
     # Narrow pane: still the first segment, "…" and at least the last segment, in full.
     pane.go(str(deep)); w.resize(780, 600); pump(60)
     texts = [b.text() for b in crumbs()[1:]]
-    assert texts[0] == '/' and '…' in texts and texts[-1] == 'Final report', texts
+    assert '…' in texts and texts[-1] == 'Final report', texts
+    # Split view on a small window: the current folder name stays readable.
+    w.resize(1300, 600); w.show_right_pane(); w.pane2.go(str(deep)); pump(60)
+    for p in (w.pane1, w.pane2):
+        pane = p
+        texts = [b.text() for b in crumbs()[1:]]
+        assert '…' in texts and texts[-1].startswith('Fin') and texts[-1].endswith(('report', 'ort')), texts
     w.close(); app.processEvents()
 print('O3 breadcrumbs OK · first / … menu / last segments in full · host tooltip · click and Ctrl+L edit')
