@@ -11,6 +11,7 @@ import sys as _sys, pathlib as _pathlib; _sys.path.insert(0, str(_pathlib.Path(_
 import os, tempfile
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ['XDG_CONFIG_HOME'] = tempfile.mkdtemp(prefix='niruorg-qt-test-')
+import atexit, shutil; atexit.register(shutil.rmtree, os.environ['XDG_CONFIG_HOME'], True)  # do not leave it in /tmp
 try:
     from PySide6.QtWidgets import QApplication, QDialog, QPushButton
     from PySide6.QtCore import QTimer
