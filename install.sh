@@ -21,10 +21,10 @@ else
  echo 'Optional integrations are not modified on upgrade (set NIRUORG_INSTALL_OPTIONAL=1 to opt in).'
 fi
 mkdir -p "$RELEASES" "$BIN" "$DESK" "$ICON" "$MIME/packages" "$STATE"; STAGE="$RELEASE_DIR.staging"; trap 'rm -rf "$STAGE"' ERR INT TERM; rm -rf "$STAGE"; mkdir -p "$STAGE"; cp -a "$SRC_DIR"/. "$STAGE"/
-python3 -m py_compile "$STAGE/niruorg/app.py" "$STAGE/regression-suite.py" "$STAGE/gui-smoke-test.py" $(find "$STAGE" -maxdepth 1 -type f -name '*-test.py' -print)
+python3 -m py_compile "$STAGE/niruorg/app.py" "$STAGE/regression-suite.py" $(find "$STAGE/tests" -maxdepth 1 -type f -name '*-test.py' -print)
 python3 "$STAGE/regression-suite.py"
 python3 "$STAGE/niruorg/app.py" --self-test
-QT_QPA_PLATFORM=offscreen timeout 8s python3 "$STAGE/gui-smoke-test.py"
+QT_QPA_PLATFORM=offscreen timeout 8s python3 "$STAGE/tests/gui-smoke-test.py"
 find "$STAGE" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true; find "$STAGE" -type f -name "*.py[co]" -delete 2>/dev/null || true
 PREV=""; [ -L "$CURRENT" ] && PREV="$(readlink -f "$CURRENT" || true)"
 if [[ "$PREV" == "$RELEASE_DIR" ]]; then

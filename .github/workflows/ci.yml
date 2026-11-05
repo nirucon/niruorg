@@ -45,4 +45,4 @@ jobs:
       - name: Application self-test
         run: python niruorg/app.py --self-test
       - name: Qt offscreen smoke test
-        run: timeout 15s python gui-smoke-test.py
+        run: timeout 15s python tests/gui-smoke-test.py

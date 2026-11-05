@@ -1,6 +1,8 @@
 # Testing and quality gates
 
-NIRUORG keeps its existing regression tests at the repository root. `regression-suite.py` is the single registration manifest. Adding `*-test.py` without registering it is an error.
+NIRUORG keeps its regression tests in `tests/` (moved from the repository root in 0.6.0; the file names are unchanged, so the history stays searchable). `regression-suite.py` at the repository root is the single registration manifest and runner: it executes every test from the repository root, with the root on `PYTHONPATH`. Adding a `tests/*-test.py` without registering it is an error.
+
+Run the commands below from the repository root. A single test can be run directly, for example `python3 tests/release-test.py`.
 
 ## Tests without a desktop/Qt
 
@@ -18,7 +20,7 @@ Requires PySide6 and a supported Linux Qt platform plugin:
 ```bash
 QT_QPA_PLATFORM=offscreen python3 regression-suite.py
 python3 niruorg/app.py --self-test
-QT_QPA_PLATFORM=offscreen python3 gui-smoke-test.py
+QT_QPA_PLATFORM=offscreen python3 tests/gui-smoke-test.py
 ```
 
 The synthetic Qt smoke test validates construction and core widget connections. It deliberately does **not** emulate a full Wayland session, because older PySide6/Qt offscreen event-loop combinations produced process-level crashes unrelated to normal desktop operation.

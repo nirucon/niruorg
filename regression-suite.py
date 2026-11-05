@@ -6,6 +6,9 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
+# Tests live in tests/ (0.6.0); they run with the repository root as working
+# directory and on PYTHONPATH, so source paths and `import niruorg` resolve.
+TEST_DIR = ROOT / 'tests'
 
 # Ordered because some older tests document historical contracts. Every test is
 # declared exactly once here; install.sh compiles/runs this manifest rather than
@@ -80,7 +83,7 @@ def main() -> int:
     non_qt_only = '--non-qt' in sys.argv[1:]
     declared = {name for name, _, _ in TESTS}
     discovered = {
-        p.name for p in ROOT.glob('*-test.py')
+        p.name for p in TEST_DIR.glob('*-test.py')
         if p.name != 'gui-smoke-test.py'
     }
     missing = sorted(declared - discovered)
@@ -96,11 +99,12 @@ def main() -> int:
         if non_qt_only and qt:
             continue
         env = os.environ.copy()
+        env['PYTHONPATH'] = str(ROOT) + (os.pathsep + env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
         if qt:
             env['QT_QPA_PLATFORM'] = 'offscreen'
         try:
             subprocess.run(
-                [sys.executable, str(ROOT / name)],
+                [sys.executable, str(TEST_DIR / name)],
                 cwd=ROOT,
                 env=env,
                 check=True,
