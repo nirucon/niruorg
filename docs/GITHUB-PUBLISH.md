@@ -69,3 +69,18 @@ command gh release create v0.3.0 ../NIRUORG-0.3.0.zip --repo nirucon/niruorg --t
 ## For subsequent versions
 
 Work in `niruorg-git/`, create a branch, edit code, run tests, commit, push, open a pull request, and only tag after merging. The ZIP for users remains a separate release asset generated from the tested source, not a second copy of the project committed to main.
+
+## Automated releases (0.6.0 and later)
+
+Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`. It checks that the
+tag equals `VERSION` in `niruorg/app.py` and `install.sh`, runs the full
+regression suite, and creates the GitHub release with:
+
+- the notes from `RELEASE_NOTES.md` (its first heading is the release title),
+- `NIRUORG-X.Y.Z.zip` (`git archive` of the tag) and `SHA256SUMS`,
+- the SHA-256 of GitHub's tag tarball
+  (`https://github.com/nirucon/niruorg/archive/refs/tags/vX.Y.Z.tar.gz`) as a
+  ready `extras_table` line for the NIRUX pin.
+
+An existing release is never replaced, and tags are never moved: fix problems
+in a new patch version.

@@ -1,0 +1,79 @@
+name: NIRUORG release
+
+# Creates the GitHub release for a pushed vX.Y.Z tag: release notes from
+# RELEASE_NOTES.md, the source ZIP and SHA256SUMS (the same layout as the
+# 0.5.x releases), plus the SHA-256 of GitHub's tag tarball, which is what the
+# NIRUX extras pin verifies. Existing releases and assets are never replaced.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Test and publish
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check that the tag matches the application version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app=$(python -c "import re;print(re.search(r'''^(?:APP\s*=.*;\s*)?VERSION\s*=\s*['\"]([^'\"]+)''',open('niruorg/app.py').read(),re.M).group(1))")
+          inst=$(sed -n 's/^VERSION="\([^"]*\)".*/\1/p' install.sh)
+          echo "tag=$tag app=$app install.sh=$inst"
+          test -n "$app" && test "$tag" = "$app" && test "$tag" = "$inst"
+      - name: Install Qt platform dependencies and PySide6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-cursor0
+          python -m pip install 'PySide6>=6.7,<7'
+      - name: Regression suite and self-test
+        run: |
+          python -m compileall -q niruorg
+          python regression-suite.py
+          python niruorg/app.py --self-test
+          timeout 15s python tests/gui-smoke-test.py
+      - name: Build assets
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          git archive --format=zip --prefix="NIRUORG-$v/" -o "NIRUORG-$v.zip" "$GITHUB_REF_NAME"
+          sha256sum "NIRUORG-$v.zip" > SHA256SUMS
+          curl -fsSL --retry 5 -o tag.tar.gz "https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz"
+          tarball=$(sha256sum tag.tar.gz | cut -d' ' -f1)
+          title=$(sed -n '1s/^# *//p' RELEASE_NOTES.md)
+          [ -n "$title" ] || title="NIRUORG $v"
+          echo "TITLE=$title" >> "$GITHUB_ENV"
+          {
+            cat RELEASE_NOTES.md
+            echo
+            echo "## Checksums"
+            echo
+            echo '```'
+            cat SHA256SUMS
+            echo '```'
+            echo
+            echo "GitHub tag tarball \`${GITHUB_REF_NAME}.tar.gz\` SHA-256 (NIRUX extras pin):"
+            echo
+            echo '```'
+            echo "niruorg niruorg $v $tarball"
+            echo '```'
+          } > notes.md
+      - name: Create the release (never replaces an existing one)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; leaving it and its assets unchanged."
+            exit 0
+          fi
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$TITLE" --notes-file notes.md \
+            "NIRUORG-$v.zip" SHA256SUMS
