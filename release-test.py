@@ -34,7 +34,7 @@ assert 'Minimal but powerful file organizer for Linux.' in app
 assert 'def image_viewer' in app and 'QTimer.singleShot(1,batch)' in app
 assert 'def _copy_file' in app and '4*1024*1024' in app
 assert 'def integrations' in app and 'def nextcloud_share' in app and 'def media_info' in app
-assert 'class BrowserTree(QTreeView)' in app and 'def keyPressEvent' in app and "'Shift+Delete'" in app
+assert 'class BrowserTree(QTableView)' in app and 'def keyPressEvent' in app and "'Shift+Delete'" in app
 assert 'def archive_browser' in app and 'Unsafe archive path blocked' in app
 assert 'def temporary_split' in app and 'def path_actions' in app
 assert "VERSION='0.5.1'" in app

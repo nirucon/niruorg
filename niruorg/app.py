@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import os,sys,shutil,subprocess,mimetypes,zipfile,tarfile,stat,json,urllib.request,urllib.parse,base64,shlex,socket,tempfile,time,re,hashlib,uuid,xml.etree.ElementTree as ET
 from pathlib import Path
-from PySide6.QtCore import QPointF,Qt,QDate,QDir,QUrl,QSettings,QStandardPaths,QModelIndex,QEvent,QSortFilterProxyModel,QRegularExpression,QSize,QFile,QTimer,QRunnable,QThreadPool,Signal,QObject,QProcess,QMimeData
-from PySide6.QtGui import QAction,QKeySequence,QDesktopServices,QImage,QPixmap,QIcon,QShortcut,QColor,QPainter,QPen,QBrush,QPolygonF,QCursor,QDrag
+from PySide6.QtCore import QPointF,Qt,QDate,QDir,QUrl,QSettings,QStandardPaths,QModelIndex,QEvent,QSortFilterProxyModel,QIdentityProxyModel,QRegularExpression,QSize,QFile,QTimer,QRunnable,QThreadPool,Signal,QObject,QProcess,QMimeData
+from PySide6.QtGui import QStandardItemModel,QStandardItem,QAction,QKeySequence,QDesktopServices,QImage,QPixmap,QIcon,QShortcut,QColor,QPainter,QPen,QBrush,QPolygonF,QCursor,QDrag
 from PySide6.QtWidgets import *
 from PySide6.QtWidgets import QFileIconProvider
 try:
@@ -16,6 +16,7 @@ try:
  from .core.paths import mounted_paths,path_is_mounted,lexical_under
  from .utils.format import human
  from .utils.logging import log_error
+ from .ui.directory_model import DirectoryModel
 except ImportError:  # Direct execution via installer's app.py launcher
  from transfer_safety import TransferSafetyError,verified_partial_offset,guard_transfer_locations
  from utils.workers import TaskWorker
@@ -27,6 +28,7 @@ except ImportError:  # Direct execution via installer's app.py launcher
  from core.paths import mounted_paths,path_is_mounted,lexical_under
  from utils.format import human
  from utils.logging import log_error
+ from ui.directory_model import DirectoryModel
 APP='NIRUORG'; VERSION='0.5.1'
 THEMES={
  'Niru Noir':{'bg':'#090909','fg':'#ededed','muted':'#858585','panel':'#141414','surface':'#1b1b1b','border':'#292929','accent':'#bdbdbd','accentfg':'#090909','sel':'#333333','danger':'#d56b6b'},
@@ -131,6 +133,18 @@ class SemanticIconProvider(QFileIconProvider):
   else:
    q.drawRoundedRect(7,4,18,24,2,2); q.drawLine(11,11,21,11); q.drawLine(11,16,21,16); q.drawLine(11,21,18,21)
   q.end(); icon=QIcon(pm); self._cache[kind]=icon; return icon
+ def icon_for_name(self,name,is_dir):
+  # DirectoryModel path: no QFileInfo, no filesystem access, one lookup per suffix.
+  if is_dir:return self._icon('folder')
+  low=name.lower(); dot=low.rfind('.'); key=low[dot:] if dot>0 else ''
+  kind=self._kinds.get(key) if hasattr(self,'_kinds') else None
+  if kind is None:
+   if not hasattr(self,'_kinds'):self._kinds={}
+   mime=mimetypes.guess_type('x'+key)[0] or '' if key else ''
+   kind='image' if mime.startswith('image/') else 'media' if (mime.startswith('audio/') or mime.startswith('video/')) else 'file'
+   self._kinds[key]=kind
+  if kind=='file' and low.endswith(('.zip','.7z','.rar','.tar','.gz','.xz','.zst','.bz2')):kind='archive'
+  return self._icon(kind)
  def icon(self,arg):
   try:
    if hasattr(arg,'isDir') and arg.isDir(): return self._icon('folder')
@@ -485,29 +499,75 @@ class SearchWorker(QRunnable):
    self.signals.done.emit({'generation':self.generation,'paths':paths,'cancelled':self.cancelled})
   except Exception as e:self.signals.failed.emit(str(e))
 
-class Filter(QSortFilterProxyModel):
- def data(self,index,role=Qt.ItemDataRole.DisplayRole):
-  if role==Qt.ItemDataRole.DisplayRole and index.column()==3:
-   try:
-    src=self.mapToSource(index); info=self.sourceModel().fileInfo(src); dt=info.lastModified()
-    owner=self.parent().owner; fmt=getattr(owner,'date_format','Swedish')
-    if fmt=='Swedish':return dt.toString('yyyy-MM-dd HH:mm')
-    if fmt=='ISO':return dt.toString('yyyy-MM-ddTHH:mm:ss')
-    if fmt=='Compact':return dt.toString('yy-MM-dd HH:mm')
-   except Exception:pass
-  return super().data(index,role)
- def filterAcceptsRow(self,row,parent):
-  pat=self.filterRegularExpression().pattern()
-  if not pat:return True
-  # Filter only the listed folder's entries. Its ancestors must stay accepted,
-  # otherwise the view root disappears and every filter shows zero rows.
+class Filter(QIdentityProxyModel):
+ # Sorting and the name filter run inside DirectoryModel on precomputed keys.
+ # A QSortFilterProxyModel called back into Python for every comparison and
+ # row, which blocked the UI for about a second per sort on 100 000 entries.
+ def sort(self,column,order=Qt.SortOrder.AscendingOrder):
   m=self.sourceModel()
-  if parent!=m.index(m.rootPath()):return True
-  idx=m.index(row,0,parent); return self.filterRegularExpression().match(self.sourceModel().fileName(idx)).hasMatch()
-class BrowserTree(QTreeView):
+  if m is not None:m.sort(column,order)
+ def setFilterCaseSensitivity(self,_sensitivity):pass
+ def setFilterRegularExpression(self,rx):
+  m=self.sourceModel(); pat=rx.pattern() if hasattr(rx,'pattern') else str(rx or '')
+  # Compatibility: callers pass an escaped literal; DirectoryModel matches substrings.
+  if m is not None:m.set_name_filter(re.sub(r'\\(.)',r'\1',pat))
+ def invalidate(self):
+  m=self.sourceModel()
+  if m is not None and m.rowCount():m.dataChanged.emit(m.index(0,0),m.index(m.rowCount()-1,m.columnCount()-1))
+class RowHoverDelegate(QStyledItemDelegate):
+ # QTreeView highlights the whole hovered row and draws no per-cell focus
+ # frame; keep that look on the table-based file list.
+ def initStyleOption(self,option,index):
+  super().initStyleOption(option,index); view=self.parent()
+  if index.row()==getattr(view,'_hover_row',-1):option.state|=QStyle.StateFlag.State_MouseOver
+  else:option.state&=~QStyle.StateFlag.State_MouseOver
+  option.state&=~QStyle.StateFlag.State_HasFocus
+class BrowserTree(QTableView):
+ # 0.6.0: a QTableView styled like the former QTreeView. QTreeView re-laid
+ # out every row (one Python model call each) after each sort, filter step or
+ # listing batch: ~600 ms per step with 100 000 entries. QTableView only
+ # touches the visible rows. The QTreeView-only setters below are kept as
+ # no-ops so pane configuration and gallery code stay unchanged.
  MIME='application/x-niruorg-files'
  def __init__(self,pane):
   super().__init__(pane); self.pane=pane; self.setAcceptDrops(True); self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop); self.setDefaultDropAction(Qt.DropAction.CopyAction); self.setDropIndicatorShown(True)
+  self._hover_row=-1; self.setMouseTracking(True); self.setItemDelegate(RowHoverDelegate(self)); self.setShowGrid(False); self.setWordWrap(False); self.setCornerButtonEnabled(False); self.setTabKeyNavigation(False)
+  self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows); self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers); self.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+  self.verticalHeader().hide(); self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed); self.horizontalHeader().setHighlightSections(False); self.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter); self.horizontalHeader().setSortIndicatorShown(True)
+  # Fit Size/Type/Date to the rows on screen, not 1 000 sampled rows per batch/sort.
+  self.horizontalHeader().setResizeContentsPrecision(0)
+ def header(self):return self.horizontalHeader()
+ def setRootIsDecorated(self,_on):pass
+ def setIndentation(self,_px):pass
+ def setUniformRowHeights(self,_on):pass
+ def setAnimated(self,_on):pass
+ def set_row_height(self,px):self.verticalHeader().setDefaultSectionSize(max(12,int(px))); self.verticalHeader().setMinimumSectionSize(max(12,int(px)))
+ def moveCursor(self,action,modifiers):
+  # Tree semantics on a table: Left/Right do not walk across columns, and
+  # Home/End jump to the first/last row; the current column stays the name.
+  cur=self.currentIndex(); m=self.model(); rows=m.rowCount(self.rootIndex()) if m is not None else 0
+  A=QAbstractItemView.CursorAction
+  if action in (A.MoveLeft,A.MoveRight):return cur.siblingAtColumn(0) if cur.isValid() else cur
+  if action==A.MoveHome and rows:return m.index(0,0,self.rootIndex())
+  if action==A.MoveEnd and rows:return m.index(rows-1,0,self.rootIndex())
+  idx=super().moveCursor(action,modifiers)
+  return idx.siblingAtColumn(0) if idx.isValid() else idx
+ def mouseMoveEvent(self,event):
+  row=self.rowAt(int(event.position().y()))
+  if row!=self._hover_row:
+   old=self._hover_row; self._hover_row=row; self._update_row(old); self._update_row(row)
+  super().mouseMoveEvent(event)
+ def leaveEvent(self,event):
+  old=self._hover_row; self._hover_row=-1; self._update_row(old); super().leaveEvent(event)
+ def _update_row(self,row):
+  if row<0 or self.model() is None:return
+  r=self.visualRect(self.model().index(row,0,self.rootIndex()))
+  if r.isValid():self.viewport().update(0,r.top(),self.viewport().width(),r.height())
+ def keyboardSearch(self,text):
+  # Type-ahead always matches names, whichever column holds the cursor.
+  cur=self.currentIndex()
+  if cur.isValid() and cur.column()!=0:self.setCurrentIndex(cur.siblingAtColumn(0))
+  super().keyboardSearch(text)
  def startDrag(self,supported):
   # QFileSystemModel's platform drag implementation is not reliable for FUSE
   # paths on Wayland. Publish explicit file URLs plus NIRUORG pane identity.
@@ -613,7 +673,7 @@ class PaneTabBar(QTabBar):
 
 class FilePane(QWidget):
  def __init__(self,owner):
-  super().__init__(); self.owner=owner; self.setObjectName('filePane'); self.setProperty('activePane',False); self.current=Path.home(); self.remote_name=None; self.remote_protocol=None; self.remote_mount=None; self.remote_root=None; self.model=QFileSystemModel(self); self.icons=SemanticIconProvider(owner.palette()); self.model.setIconProvider(self.icons); self.model.setFilter(QDir.Filter.AllEntries|QDir.Filter.NoDotAndDotDot|QDir.Filter.AllDirs)
+  super().__init__(); self.owner=owner; self.setObjectName('filePane'); self.setProperty('activePane',False); self.current=Path.home(); self.remote_name=None; self.remote_protocol=None; self.remote_mount=None; self.remote_root=None; self.model=DirectoryModel(self); self.model.date_formatter=self._format_date; self.icons=SemanticIconProvider(owner.palette()); self.model.setIconProvider(self.icons); self.model.setFilter(QDir.Filter.AllEntries|QDir.Filter.NoDotAndDotDot|QDir.Filter.AllDirs)
   self.proxy=Filter(self); self.proxy.setSourceModel(self.model); self.proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
   self.view=BrowserTree(self); self.view.setModel(self.proxy); self.view.setSortingEnabled(True); self.view.sortByColumn(0,Qt.SortOrder.AscendingOrder); self.view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection); self.view.setUniformRowHeights(True); self.view.setAnimated(False); self.view.setIndentation(14); self.view.setRootIsDecorated(False); self.view.header().setStretchLastSection(False); self.view.header().setSectionResizeMode(0,QHeaderView.ResizeMode.Stretch); self.view.header().setSectionResizeMode(1,QHeaderView.ResizeMode.ResizeToContents); self.view.header().setSectionResizeMode(2,QHeaderView.ResizeMode.ResizeToContents); self.view.header().setSectionResizeMode(3,QHeaderView.ResizeMode.ResizeToContents); self.view.setDragEnabled(True); self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu); self.view.customContextMenuRequested.connect(lambda p:owner.context_menu(self,p)); self.view.doubleClicked.connect(self.activate); self.view.clicked.connect(lambda *_:owner.set_active(self)); self.view.selectionModel().selectionChanged.connect(lambda *_:(owner.update_status(),owner.update_quicklook()))
   self.path=QLineEdit(); self.path.returnPressed.connect(self.commit_location); self.path.hide(); self.crumb=QWidget(); self.crumb_lay=QHBoxLayout(self.crumb); self.crumb_lay.setContentsMargins(0,0,0,0); self.crumb_lay.setSpacing(1); self.filter=QLineEdit(); self.filter.setPlaceholderText('Filter'); self.filter.setMaximumWidth(160); self.filter.textChanged.connect(self.set_filter)
@@ -628,6 +688,12 @@ class FilePane(QWidget):
   # selection summary in step with every batch, completion and filter change.
   for sig in (self.proxy.rowsInserted,self.proxy.rowsRemoved,self.proxy.modelReset,self.proxy.layoutChanged):sig.connect(self._listing_changed)
   self.model.directoryLoaded.connect(self._listing_changed)
+ def _format_date(self,dt):
+  fmt=getattr(self.owner,'date_format','Swedish')
+  if fmt=='Swedish':return dt.toString('yyyy-MM-dd HH:mm')
+  if fmt=='ISO':return dt.toString('yyyy-MM-ddTHH:mm:ss')
+  if fmt=='Compact':return dt.toString('yy-MM-dd HH:mm')
+  return None
  def _listing_changed(self,*_):
   if self.owner.active is self:self.owner.schedule_status()
  def eventFilter(self,obj,event):
@@ -795,17 +861,12 @@ class FilePane(QWidget):
    if idx<len(parts)-1:
     sep=QLabel('›'); sep.setObjectName('crumbsep'); self.crumb_lay.addWidget(sep)
   self.crumb_lay.addStretch(1)
- def set_filter(self,t):self.proxy.setFilterRegularExpression(QRegularExpression(QRegularExpression.escape(t),QRegularExpression.PatternOption.CaseInsensitiveOption)); self._listing_changed()
+ def set_filter(self,t):self.model.set_name_filter(t); self._listing_changed()
  def _apply_root(self,path,attempt=0):
-  # QFileSystemModel populates directories asynchronously. setRootPath() both
-  # requests the directory and returns its source index; never use an invalid
-  # QModelIndex as the view root because Qt then exposes the local filesystem /.
-  src=self.model.setRootPath(str(path))
-  if src.isValid():
-   self.view.setRootIndex(self.proxy.mapFromSource(src)); return True
-  if attempt<20:
-   QTimer.singleShot(50,lambda p=Path(path),a=attempt+1:self._apply_root(p,a)); return False
-  self.owner.err(f'Could not open folder in file pane:\n{path}'); return False
+  # DirectoryModel lists the folder on a worker thread and streams rows in
+  # batches. It is a flat model, so the view root is the model's top level.
+  # Re-applying the same folder re-lists it in place and keeps the selection.
+  self.model.setRootPath(str(path)); self.view.setRootIndex(QModelIndex()); return True
  def _commit_go(self,path,push=True,leave_remote=False,verified_remote=False):
   p=Path(os.path.abspath(os.path.expanduser(str(path))))
   if self.is_remote():
@@ -835,9 +896,19 @@ class FilePane(QWidget):
   if self.hist>0:self.hist-=1; self.go(self.history[self.hist],False)
  def forward(self):
   if self.hist+1<len(self.history):self.hist+=1; self.go(self.history[self.hist],False)
+ def selected_rows(self):
+  # Read the selection as row ranges: selectedRows() asks the model for every
+  # cell's flags, which takes seconds after Ctrl+A in a 100 000-entry folder.
+  rows=[]; seen=set()
+  for r in self.view.selectionModel().selection():
+   if r.parent().isValid():continue
+   for row in range(r.top(),r.bottom()+1):
+    if row not in seen:seen.add(row); rows.append(row)
+  return rows
  def selected(self):
-  out=[]
-  for i in self.view.selectionModel().selectedRows(0):out.append(Path(self.model.filePath(self.proxy.mapToSource(i))))
+  entries=self.model.visible_entries(); root=self.model.rootPath(); out=[]
+  for row in self.selected_rows():
+   if 0<=row<len(entries):out.append(Path(os.path.join(root,entries[row].name)))
   return out
  def activate(self,idx):
   src=self.proxy.mapToSource(idx); p=Path(self.model.filePath(src)); self.go(p) if self.model.isDir(src) else self.owner.open_path(p)
@@ -1142,9 +1213,19 @@ class Main(QMainWindow):
   self.apply_theme(); self.refresh_views(); self.update_quicklook()
  def apply_theme(self):
   t=self.palette(); metrics=self.theme_metrics(); pad=metrics['padding']
-  self.setStyleSheet(('''QWidget { background:%(bg)s;color:%(fg)s;font-size:%(font_size)spx;selection-background-color:%(sel)s;selection-color:%(fg)s;} QTreeView,QListWidget,QPlainTextEdit {background:%(bg)s;border:0;} QLineEdit,QComboBox {background:%(panel)s;color:%(fg)s;padding:7px 9px;border:1px solid %(border)s;border-radius:5px;} QLineEdit:focus,QComboBox:focus {border:%(focus_width)spx solid %(accent)s;} QListWidget {background:%(panel)s;padding:7px;border-right:1px solid %(border)s;} QListWidget::item {padding:6px;border-radius:4px;} QListWidget::item:hover {background:%(surface)s;} QListWidget::item:selected {background:%(sel)s;color:%(fg)s;} QTreeView::item {padding:%(pad)spx 4px;} QTreeView::item:hover {background:%(surface)s;} QTreeView::item:selected {background:%(sel)s;color:%(fg)s;} QHeaderView::section {background:%(panel)s;color:%(muted)s;padding:6px;border:0;border-bottom:1px solid %(border)s;} QToolButton,QPushButton {background:transparent;color:%(fg)s;border:1px solid transparent;border-radius:5px;padding:6px 10px;} QToolButton:hover,QPushButton:hover {background:%(surface)s;border-color:%(border)s;} QPushButton:default,QPushButton:focus,QToolButton:focus {border:1px solid %(accent)s;} QPushButton {qproperty-iconSize:0px 0px;} QPushButton:pressed,QToolButton:pressed {background:%(sel)s;} QMenu {background:%(panel)s;border:1px solid %(border)s;padding:5px;} QMenu::item {padding:7px 24px;border-radius:4px;} QMenu::item:selected {background:%(sel)s;} QDialog {background:%(bg)s;} QCheckBox::indicator {width:15px;height:15px;border:1px solid %(border)s;border-radius:3px;background:%(panel)s;} QCheckBox::indicator:checked {background:%(surface)s;border:2px solid %(fg)s;} QWidget#filePane[activePane="true"] {border-top:2px solid %(fg)s;} QTabBar#paneTabs {border-bottom:1px solid %(border)s;} QTabBar#paneTabs::tab {min-width:72px;padding:6px 8px 6px 12px;color:%(muted)s;background:%(panel)s;border-right:1px solid %(border)s;} QTabBar#paneTabs::tab:selected {color:%(fg)s;background:%(surface)s;font-weight:600;border-bottom:2px solid %(fg)s;} QWidget#filePane[activePane="false"] QTabBar#paneTabs::tab:selected {color:%(fg)s;background:%(surface)s;font-weight:500;border-bottom:2px solid %(muted)s;} QTabBar#paneTabs[activePane="true"]::tab:selected {color:%(fg)s;background:%(sel)s;font-weight:700;border-bottom:2px solid %(fg)s;} QToolButton#paneTabClose {color:%(muted)s;background:transparent;border:0;border-radius:3px;padding:0;margin:0;} QToolButton#paneTabClose:hover {color:%(fg)s;background:%(sel)s;border:0;} QSplitter#mainSplitter::handle {background:transparent;width:7px;} QSplitter#mainSplitter::handle:horizontal {border-left:1px solid %(border)s;} QLabel#crumbsep {color:%(muted)s;padding:0 2px;} QProgressBar {background:%(bg)s;border:0;} QProgressBar::chunk {background:%(fg)s;} QLabel#muted {color:%(muted)s;} QLabel#status {color:%(muted)s;border-top:1px solid %(border)s;} QWidget#transferBar {background:%(panel)s;border-top:1px solid %(border)s;} QLabel#transferTitle {font-weight:600;} QWidget#transferBar QProgressBar {background:%(bg)s;border:1px solid %(border)s;border-radius:2px;} QWidget#transferBar QProgressBar::chunk {background:%(fg)s;} QScrollBar:vertical {background:%(bg)s;width:9px;margin:0;} QScrollBar::handle:vertical {background:%(border)s;min-height:24px;border-radius:4px;} QScrollBar::add-line,QScrollBar::sub-line {height:0;width:0;}''') % {**t,'pad':pad,**metrics})
+  self.setStyleSheet(('''QWidget { background:%(bg)s;color:%(fg)s;font-size:%(font_size)spx;selection-background-color:%(sel)s;selection-color:%(fg)s;} QTreeView,QTableView,QListWidget,QPlainTextEdit {background:%(bg)s;border:0;} QLineEdit,QComboBox {background:%(panel)s;color:%(fg)s;padding:7px 9px;border:1px solid %(border)s;border-radius:5px;} QLineEdit:focus,QComboBox:focus {border:%(focus_width)spx solid %(accent)s;} QListWidget {background:%(panel)s;padding:7px;border-right:1px solid %(border)s;} QListWidget::item {padding:6px;border-radius:4px;} QListWidget::item:hover {background:%(surface)s;} QListWidget::item:selected {background:%(sel)s;color:%(fg)s;} QTreeView::item,QTableView::item {padding:%(pad)spx 4px;} QTreeView::item:hover,QTableView::item:hover {background:%(surface)s;} QTreeView::item:selected,QTableView::item:selected {background:%(sel)s;color:%(fg)s;} QHeaderView::section {background:%(panel)s;color:%(muted)s;padding:6px;border:0;border-bottom:1px solid %(border)s;} QToolButton,QPushButton {background:transparent;color:%(fg)s;border:1px solid transparent;border-radius:5px;padding:6px 10px;} QToolButton:hover,QPushButton:hover {background:%(surface)s;border-color:%(border)s;} QPushButton:default,QPushButton:focus,QToolButton:focus {border:1px solid %(accent)s;} QPushButton {qproperty-iconSize:0px 0px;} QPushButton:pressed,QToolButton:pressed {background:%(sel)s;} QMenu {background:%(panel)s;border:1px solid %(border)s;padding:5px;} QMenu::item {padding:7px 24px;border-radius:4px;} QMenu::item:selected {background:%(sel)s;} QDialog {background:%(bg)s;} QCheckBox::indicator {width:15px;height:15px;border:1px solid %(border)s;border-radius:3px;background:%(panel)s;} QCheckBox::indicator:checked {background:%(surface)s;border:2px solid %(fg)s;} QWidget#filePane[activePane="true"] {border-top:2px solid %(fg)s;} QTabBar#paneTabs {border-bottom:1px solid %(border)s;} QTabBar#paneTabs::tab {min-width:72px;padding:6px 8px 6px 12px;color:%(muted)s;background:%(panel)s;border-right:1px solid %(border)s;} QTabBar#paneTabs::tab:selected {color:%(fg)s;background:%(surface)s;font-weight:600;border-bottom:2px solid %(fg)s;} QWidget#filePane[activePane="false"] QTabBar#paneTabs::tab:selected {color:%(fg)s;background:%(surface)s;font-weight:500;border-bottom:2px solid %(muted)s;} QTabBar#paneTabs[activePane="true"]::tab:selected {color:%(fg)s;background:%(sel)s;font-weight:700;border-bottom:2px solid %(fg)s;} QToolButton#paneTabClose {color:%(muted)s;background:transparent;border:0;border-radius:3px;padding:0;margin:0;} QToolButton#paneTabClose:hover {color:%(fg)s;background:%(sel)s;border:0;} QSplitter#mainSplitter::handle {background:transparent;width:7px;} QSplitter#mainSplitter::handle:horizontal {border-left:1px solid %(border)s;} QLabel#crumbsep {color:%(muted)s;padding:0 2px;} QProgressBar {background:%(bg)s;border:0;} QProgressBar::chunk {background:%(fg)s;} QLabel#muted {color:%(muted)s;} QLabel#status {color:%(muted)s;border-top:1px solid %(border)s;} QWidget#transferBar {background:%(panel)s;border-top:1px solid %(border)s;} QLabel#transferTitle {font-weight:600;} QWidget#transferBar QProgressBar {background:%(bg)s;border:1px solid %(border)s;border-radius:2px;} QWidget#transferBar QProgressBar::chunk {background:%(fg)s;} QScrollBar:vertical {background:%(bg)s;width:9px;margin:0;} QScrollBar::handle:vertical {background:%(border)s;min-height:24px;border-radius:4px;} QScrollBar::add-line,QScrollBar::sub-line {height:0;width:0;}''') % {**t,'pad':pad,**metrics})
   for pane in (getattr(self,'pane1',None),getattr(self,'pane2',None)):
    if pane: pane.icons.set_palette(t); pane.model.setIconProvider(pane.icons)
+  self.sync_row_heights()
+ def sync_row_heights(self):
+  # The file list is a QTableView with fixed row heights; give it exactly the
+  # row height a QTreeView would compute from the current stylesheet, font
+  # and icon size, so density and themes look as before.
+  for pane in (getattr(self,'pane1',None),getattr(self,'pane2',None)):
+   if pane is None:continue
+   probe=QTreeView(self); probe.hide(); probe.setIconSize(pane.view.iconSize()); m=QStandardItemModel(probe); m.appendRow([QStandardItem(pane.icons._icon('folder'),'Ag'),QStandardItem('4.88 KiB')]); probe.setModel(m); probe.ensurePolished()
+   h=probe.sizeHintForRow(0); probe.setParent(None); probe.deleteLater()
+   if h>0:pane.view.set_row_height(h)
  def addact(self,m,text,fn,sc=None,bind=True):
   a=QAction(text,self); a.triggered.connect(fn)
   if sc:
@@ -1286,7 +1367,7 @@ class Main(QMainWindow):
  def show_about(self):
   self.info_dialog('About NIRUORG',f'<b>NIRUORG {VERSION}</b><br><br>Minimal but powerful file organizer for Linux.<br>Fast local and remote file management with a keyboard-first workflow and full mouse support.<br><br>Created by Nicklas Rudolfsson.')
  def refresh_current(self):
-  self.invalidate_quicklook(); self.active.model.setRootPath(''); self.active.model.setRootPath(str(self.active.current)); self.active.go(self.active.current,False); self.update_status()
+  self.invalidate_quicklook(); self.active.go(self.active.current,False); self.update_status()
  def escape_action(self):
   if self.active.filter.hasFocus() or self.active.filter.text():self.active.filter.clear(); self.active.view.setFocus(); return
   self.active.view.clearSelection(); self.update_status()
@@ -1336,16 +1417,14 @@ class Main(QMainWindow):
    t=self._status_timer=QTimer(self); t.setSingleShot(True); t.setInterval(60); t.timeout.connect(self.update_status)
   if not t.isActive():t.start()
  def update_status(self):
-  s=self.selected(); parts=[]; root=self.active.view.rootIndex(); count=self.active.proxy.rowCount(root)
+  s=self.active.selected_rows(); parts=[]; root=self.active.view.rootIndex(); count=self.active.proxy.rowCount(root)
   if self.pane2.isVisible():parts.append(f'{self.pane_side(self.active).capitalize()} active')
   parts.append(f'{count} item(s)')
   if s:
-   total=0
-   if not self.active.is_remote():
-    for p in s:
-     try:
-      if p.is_file():total+=p.stat().st_size
-     except OSError:pass
+   # Sizes come from the listing metadata: no stat() on the UI thread.
+   pane=self.active; entries=pane.model.visible_entries(); total=0
+   for row in s:
+    if 0<=row<len(entries) and not entries[row].is_dir:total+=entries[row].size
    parts.append(f'{len(s)} selected'+(f' · {human(total)}' if total else ''))
   if not self.active.is_remote():
    try:parts.append(f'{human(shutil.disk_usage(self.active.current).free)} free')
@@ -1874,7 +1953,7 @@ class Main(QMainWindow):
    if pane is None or pane.is_remote():continue
    try:
     if os.path.normpath(str(pane.current))==os.path.normpath(str(path)):
-     pane._apply_root(pane.current); self.invalidate_quicklook()
+     pane.model.refresh_soon(); self.invalidate_quicklook()
    except Exception:pass
   self.update_status()
  def _path_endpoint_meta(self,path):
@@ -1942,6 +2021,7 @@ class Main(QMainWindow):
   if mode=='gallery':return self.gallery()
   for p in (self.pane1,self.pane2):
    p.view.setIconSize(QSize(20,20)); p.view.header().show()
+  self.sync_row_heights()
  def image_viewer(self,files,start=0,fullscreen=False,parent=None):
   files=[Path(x) for x in files]
   if not files:return
