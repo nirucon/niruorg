@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 import os,sys
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
+# The installer runs this file directly on every install/upgrade: use a
+# private HOME so the user's settings and session tabs are never rewritten.
+import tempfile, atexit, shutil
+_home=tempfile.mkdtemp(prefix='niruorg-smoke-home.'); atexit.register(shutil.rmtree,_home,True)
+for _k,_v in {'HOME':_home,'XDG_CONFIG_HOME':_home+'/.config','XDG_DATA_HOME':_home+'/.local/share','XDG_STATE_HOME':_home+'/.local/state','XDG_CACHE_HOME':_home+'/.cache'}.items():os.environ[_k]=_v
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
 sys.path.insert(0,os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

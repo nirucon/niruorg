@@ -2,8 +2,10 @@
 from __future__ import annotations
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parent
 # Tests live in tests/ (0.6.0); they run with the repository root as working
@@ -103,6 +105,14 @@ def main() -> int:
         if non_qt_only and qt:
             continue
         env = os.environ.copy()
+        # Every test gets a fresh, empty HOME and XDG directories. The installer
+        # runs this suite on upgrade: tests must never read or rewrite the
+        # user's settings, session tabs, connections or Work Basket.
+        sandbox = tempfile.mkdtemp(prefix='niruorg-test-home.')
+        env.update(HOME=sandbox, XDG_CONFIG_HOME=os.path.join(sandbox, '.config'),
+                   XDG_DATA_HOME=os.path.join(sandbox, '.local', 'share'),
+                   XDG_STATE_HOME=os.path.join(sandbox, '.local', 'state'),
+                   XDG_CACHE_HOME=os.path.join(sandbox, '.cache'))
         env['PYTHONPATH'] = str(ROOT) + (os.pathsep + env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
         if qt:
             env['QT_QPA_PLATFORM'] = 'offscreen'
@@ -120,6 +130,8 @@ def main() -> int:
         except subprocess.CalledProcessError as exc:
             print(f'{name} failed with exit code {exc.returncode}; refusing release activation.', file=sys.stderr)
             return exc.returncode or 1
+        finally:
+            shutil.rmtree(sandbox, ignore_errors=True)
     ran = sum(1 for _, qt, _ in TESTS if not (non_qt_only and qt))
     print(f'Regression suite OK · {ran}/{len(TESTS)} tests executed')
     return 0
