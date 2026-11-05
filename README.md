@@ -1,6 +1,6 @@
 # NIRUORG
 
-**NIRUORG 0.5.1** is a personal, keyboard-friendly two-pane file organizer for Linux, written in Python and PySide6. It is developed primarily for an **Omarchy / Arch Linux + Hyprland + Kitty + Fish** desktop and is also intended to work on Debian-based Linux systems.
+**NIRUORG 0.6.0** is a personal, keyboard-friendly two-pane file organizer for Linux, written in Python and PySide6. It is developed primarily for an **Omarchy / Arch Linux + Hyprland + Kitty + Fish** desktop and is also intended to work on Debian-based Linux systems.
 
 This repository publishes the author's *personal setup and development project*, not a commercial file-manager product. It is usable as a standalone app, but your desktop, Qt, FUSE and external integrations may require local configuration.
 
@@ -33,7 +33,7 @@ Launch with `niruorg`. There are no system-wide application files or Docker serv
 
 To try the source without installing, run `./run.sh` in a desktop session with PySide6 already installed.
 
-**Upgrade from an earlier release:** use the 0.5.1 `install.sh` directly. The installer retains the previous release and existing `QSettings` preferences, connections, Work Basket and workspaces. It does not reset user data. For rollback guidance, see [INSTALL.md](docs/INSTALL.md).
+**Upgrade from an earlier release:** use the 0.6.0 `install.sh` directly. The installer retains the previous release and existing `QSettings` preferences, connections, Work Basket and workspaces. It does not reset user data. For rollback guidance, see [INSTALL.md](docs/INSTALL.md).
 
 ## Daily workflow
 
@@ -61,24 +61,15 @@ Useful shortcuts (actual application bindings):
 
 Use **Keybindings** in the app for the complete list. In Hyprland, `Super+Q` sends a normal close request: NIRUORG handles owned mount cleanup during shutdown. A forced kill cannot run cleanup.
 
-## 0.5.1 highlights
+## 0.6.0 highlights
 
-- FileZilla XML import works reliably again; the native file picker is no longer
-  interrupted by a stale Qt event-filter target.
-- The sidebar mirrors the XDG standard folders that actually exist, rather than
-  showing an unused Desktop placeholder.
-- Nextcloud and configured cloud remotes are shown only when available.
-- Connection definitions are portable: `~/Nextcloud/Backup/niruorg/servers.json`
-  when the synced Backup directory exists, otherwise
-  `~/.config/niruorg/servers.json`. Passwords remain in Secret Service.
-- Follow NIRUX themes live, including appearance overrides, generated kitty colours, contrast-safe derived colours and atomic-replacement watcher updates.
-- Quick Look, preview, ZIP creation, checksums, Nextcloud and cloud mounts run in retained background workers; Quick Look is debounced and cached.
-- Nextcloud public links support multiple items, permissions, expiry and optional passwords, plus public-link removal and explicit unknown/local-only sync state.
-- Local directories refresh automatically; bulk rename validates every target first and executes through a rollback-safe staging step.
-- Richer status, cached semantic icons and accessible pane, filter, location and status names.
-- Split-view size persistence, transfer integrity, remote mounts and existing workspace/session safeguards remain in place.
-
-**Scope:** This remains a quality release, not an automatic sync engine or a transfer-queue redesign. Live SSHFS/rclone failure, Nextcloud server and Wayland acceptance testing still belong on the real desktop.
+- Large folders list incrementally without freezing the window: 100 000 entries show their first rows in ~30 ms and are complete in ~1.2 s locally; sorting and filtering take well under 100 ms per step.
+- The status bar item count, selection size and filter count are always current.
+- Readable breadcrumbs: first segment, an `…` menu with the hidden middle, and the last segments in full. Click the bar (or `Ctrl+L`) to type a location.
+- Slow listings and connects show progress with Cancel; empty folders, permission errors, disconnected mounts and unresponsive servers are explained in the pane with one action.
+- Type-ahead find in the file list; resizable sidebar with shorter labels.
+- Folders sort first, names in natural order (`file2` before `file10`), sizes numerically.
+- Tests live in `tests/`; the code is formatted and split into modules under `niruorg/ui/`.
 
 See [CHANGELOG.md](CHANGELOG.md) and [Release notes](RELEASE_NOTES.md).
 

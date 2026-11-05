@@ -1,26 +1,38 @@
-# NIRUORG 0.5.1 — Connections, sidebar and import reliability
+# NIRUORG 0.6.0 — Large folders, readable paths and clear states
 
-A focused quality release built from 0.5.0.
+A correctness, responsiveness and maintainability release built from 0.5.1.
+Settings, connections, Work Basket, workspaces and the installer layout are
+unchanged; upgrading keeps all user data.
 
-- Fixed FileZilla XML import: the application-wide event filter no longer aborts
-  the native file picker while Qt is destroying a dialog layout.
-- Sidebar standard folders are now derived from real XDG locations and only
-  existing directories are shown; there is no empty Desktop placeholder.
-- Cloud entries are shown only when they exist or are configured.
-- Server definitions are stored in `~/Nextcloud/Backup/niruorg/servers.json` when
-  that synced Backup folder exists, with a per-user fallback at
-  `~/.config/niruorg/servers.json`. Passwords remain in Secret Service.
-- Added FileZilla import, sidebar and portable-server-store regression coverage.
+## Fixed
 
-## 0.5.0 — Responsiveness, NIRUX and Nextcloud
+- The status bar showed "0 item(s)" for folders that were still loading; the
+  count, selection size and filter count now follow the listing.
+- The name filter showed no rows unless the folder's own path matched.
+- Large folders froze the window for seconds. A new incremental listing shows
+  the first rows of a 100 000-entry folder in ~30 ms and never blocks the window
+  for more than ~70 ms (locally and over SFTP); sorting and filtering take well
+  under 100 ms.
+- Deep paths were unreadable (`L…ork`, `clau…1000`). Breadcrumbs now show the
+  first segment, an `…` menu and the last segments in full.
+- Help → About and Help → System diagnostics raised errors.
 
-- Follow NIRUX in real time using appearance.toml and the generated kitty palette, with contrast-safe derived colours and atomic file replacement handling.
-- Quick Look, preview, ZIP creation, checksum and Nextcloud/cloud operations now use retained background workers; Quick Look is debounced and cached.
-- Nextcloud public links support multiple selected items, read-only/read-write permissions, expiry and optional passwords; public-link removal and explicit local-only/unknown sync state are available.
-- Local panes refresh after external changes; bulk rename validates every target before changing anything and uses staged rollback-safe execution.
-- Semantic icons are cached per palette, status reports item count, selection size, free space, endpoint, transfers and Nextcloud state, and pane/filter/location/status names are accessible.
-- Shared path, formatting and error-logging utilities reduce app.py responsibilities without changing the CLI or user data model.
+## New
 
-## Validation limitations
+- Progress with Cancel for slow listings ("Listing… 12 400 items") and connects.
+- Messages with one action for empty folders, permission errors, disconnected
+  mounts and unresponsive servers.
+- Type-ahead find; click the path bar or press Ctrl+L to type a location.
+- Resizable sidebar with shorter labels; its width is remembered.
+- Folders sort first and names in natural order; sizes sort numerically.
 
-Live SSHFS/rclone disconnect, transfer concurrency, Nextcloud server compatibility and Wayland/desktop integration still require on-device testing. No automatic sync engine or destructive synchronization was added.
+## Maintenance
+
+- Tests moved to `tests/`; the code is formatted and split into `niruorg/ui/`.
+- GitHub releases are created by a workflow from version tags.
+
+## Known limits
+
+- Ctrl+A in a folder with 100 000 entries takes about 1.5 s.
+- Live SSHFS/rclone failure, Nextcloud and Wayland acceptance still belong on
+  the real desktop.

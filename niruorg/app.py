@@ -159,7 +159,7 @@ except ImportError:  # app.py run directly: niruorg/ is on sys.path
     from ui.transfers_ui import TransferUIMixin  # noqa: F401
     from ui.media import MediaMixin  # noqa: F401
 APP = 'NIRUORG'
-VERSION = '0.5.1'
+VERSION = '0.6.0'
 
 
 class Main(SidebarMixin, QuickLookMixin, MenuMixin, RemoteMixin, TransferUIMixin, MediaMixin, QMainWindow):
@@ -3202,7 +3202,7 @@ def main():
     if '--self-test' in sys.argv:
         assert human(1024) == '1.0 KB'
         assert 'Nord' in THEMES
-        assert VERSION == '0.5.1'
+        assert VERSION == '0.6.0'
         assert ConnectionDiagnosticWorker
         assert hasattr(Main, 'undo_last')
         assert hasattr(FilePane, 'update_breadcrumbs')

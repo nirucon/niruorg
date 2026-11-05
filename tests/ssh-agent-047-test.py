@@ -2,7 +2,7 @@ import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve
 from pathlib import Path
 import ast
 s=app_source()
-assert "VERSION='0.5.1'" in s
+assert "VERSION='0.6.0'" in s
 _node,_module_text,_=find_def('_ssh_agent_environment')
 tree=ast.parse(_module_text)  # the module that defines the SSH agent parser
 imports=set()

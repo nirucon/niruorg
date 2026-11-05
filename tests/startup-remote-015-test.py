@@ -3,7 +3,7 @@ import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve
 from pathlib import Path
 import ast,re
 src=app_source()
-assert "VERSION='0.5.1'" in src
+assert "VERSION='0.6.0'" in src
 assert 'class RemoteProbeWorker(QRunnable)' in src
 assert 'self._remote_probe_pool.setMaxThreadCount(2)' in src
 assert "self.pane1._commit_go(Path.home(),True)" in src

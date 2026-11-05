@@ -6,5 +6,5 @@ for needle in ["QLineEdit.EchoMode.Password", "SSH_ASKPASS_REQUIRE':'force'", "p
  assert needle in segment, needle
 for forbidden in ["run_detached(cmd", "kitty','--hold", "x-terminal-emulator"]:
  assert forbidden not in segment, forbidden
-assert "VERSION='0.5.1'" in s
+assert "VERSION='0.6.0'" in s
 print('0.5.1 native SSH unlock regression OK')

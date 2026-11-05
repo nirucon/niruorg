@@ -5,8 +5,8 @@ import re
 root=Path(__file__).resolve().parents[1]
 app=app_source()
 inst=(root/'install.sh').read_text()
-assert "VERSION='0.5.1'" in app
-assert 'VERSION="0.5.1"' in inst
+assert "VERSION='0.6.0'" in app
+assert 'VERSION="0.6.0"' in inst
 # Installer regression: tests must be separate commands, never accidental argv.
 runner = (root / "regression-suite.py").read_text()
 assert "regression-suite.py" in inst

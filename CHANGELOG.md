@@ -7,6 +7,21 @@
 
 # Changelog
 
+## 0.6.0 — 2026-11-05
+
+- **Item count (O1):** the status bar count, selection size and filter count follow the asynchronous listing (it said "0 item(s)" for a 30 000-file folder). The name filter no longer hides everything (it filtered out the listed folder's own ancestors).
+- **Large folders (O2):** new `DirectoryModel` (worker-thread `os.scandir`, incremental batches, sort/filter on precomputed keys) and a `QTableView` styled like the former tree. 100 000 local entries: first rows 97 → 30 ms, complete 4.8 → 1.2 s, longest UI stall 4 457 → 55 ms, sort 479–1 040 → 74–87 ms, RSS 210 → 158 MB. Over SFTP (sshfs): stall 5 043 → 68 ms. Folders sort first and names sort naturally; sizes sort numerically.
+- **Breadcrumbs (O3):** first segment, `…` menu, last 3/2/1 segments in full; host name tooltip on the endpoint chip; click the bar or `Ctrl+L` to type a location, `Esc` to cancel; remote paths get clickable crumbs.
+- **Repository (O4):** tests moved to `tests/` (names unchanged); `regression-suite.py` stays the single runner.
+- **Releases (O6):** `.github/workflows/release.yml` publishes a GitHub release with notes, ZIP, `SHA256SUMS` and the tag tarball checksum for NIRUX.
+- **Progress (U1):** "Listing… N items" and "Connecting to …" rows with Cancel.
+- **Sidebar (U2):** "Cloud accounts…", "Add server…"; resizable (150–480 px), width remembered.
+- **Keyboard (U3):** type-ahead find; Backspace, Alt+Left/Right, F5 and Ctrl+L covered by tests and listed in Help.
+- **Empty and error states (U4):** empty folder, permission denied, disconnected mount, server not responding, no filter match and hidden-only folders are explained in the pane with one action.
+- **Readable source (M1):** `ruff format`; panes, dialogs, workers, transfer UI, remote connections and menus/actions moved to `niruorg/ui/`; source contracts are format-insensitive.
+- Fixed Help → About and Help → System diagnostics, which raised errors.
+- Known limit: Ctrl+A in a 100 000-entry folder takes ~1.5 s.
+
 ## 0.5.1 — 2026-10-28
 
 - Fixed FileZilla XML import by making the global Qt event filter fail open when
