@@ -53,7 +53,8 @@ with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as td:
             super().__init__(); self.token = token; self.path = str(path); self.signals = appmod.RemoteProbeSignals()
         def run(self):
             time.sleep(1.0); self.signals.done.emit({'ok': True, 'path': self.path, 'token': self.token})
-    appmod.RemoteProbeWorker = SlowProbe
+    import niruorg.ui.remote as _remote_mod
+    appmod.RemoteProbeWorker = _remote_mod.RemoteProbeWorker = SlowProbe
     mnt = Path(td, 'mnt'); mnt.mkdir()
     pane.bind_remote('testbox', 'SFTP', str(mnt), '/')
     w.navigate_remote_async(pane, mnt)

@@ -58,7 +58,8 @@ with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as td:
             super().__init__(); self.token = token; self.path = str(path); self.signals = appmod.RemoteProbeSignals()
         def run(self):
             self.signals.done.emit(dict(results[-1], token=self.token, path=self.path))
-    appmod.RemoteProbeWorker = FakeProbe
+    import niruorg.ui.remote as _remote_mod
+    appmod.RemoteProbeWorker = _remote_mod.RemoteProbeWorker = FakeProbe
     mnt = root / 'mnt'; mnt.mkdir(); (mnt / 'remote.txt').write_text('r')
     pane.bind_remote('nas', 'SFTP', str(mnt), '/')
     results.append({'ok': False, 'detail': 'Offline'})
