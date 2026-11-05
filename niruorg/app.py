@@ -694,7 +694,14 @@ class FilePane(QWidget):
   top=QHBoxLayout(); top.setContentsMargins(10,8,10,7); top.addWidget(self.backb); top.addWidget(self.upb); top.addWidget(self.location_stack,1); top.addWidget(self.filter); top.addWidget(self.close_split)
   self.history=[]; self.hist=-1
   for w in (self.path,self.filter,self.backb,self.upb,self.location_stack):w.installEventFilter(self)
-  lay=QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.setSpacing(0); lay.addWidget(self.tabs); lay.addLayout(top); lay.addWidget(self.view,1)
+  # U1: non-modal activity row for slow listings and connects, with Cancel.
+  self.activity=QWidget(); self.activity.setObjectName('paneActivity'); al=QHBoxLayout(self.activity); al.setContentsMargins(12,5,8,5); al.setSpacing(10)
+  self.activity_label=QLabel(); self.activity_label.setObjectName('muted'); self.activity_cancel=QToolButton(); self.activity_cancel.setText('Cancel'); self.activity_cancel.clicked.connect(self._cancel_activity)
+  al.addWidget(self.activity_label,1); al.addWidget(self.activity_cancel); self.activity.hide(); self._activity_cancel_fn=None; self._activity_token=0
+  self._activity_timer=QTimer(self); self._activity_timer.setSingleShot(True); self._activity_timer.timeout.connect(self.activity.show)
+  lay=QVBoxLayout(self); lay.setContentsMargins(0,0,0,0); lay.setSpacing(0); lay.addWidget(self.tabs); lay.addLayout(top); lay.addWidget(self.view,1); lay.addWidget(self.activity)
+  self.model.listingStarted.connect(self._listing_started); self.model.listingProgress.connect(self._listing_progress)
+  for sig in (self.model.directoryLoaded,self.model.listingFailed,self.model.listingCancelled):sig.connect(self._listing_ended)
   # The listing is asynchronous: keep the status bar count, size and
   # selection summary in step with every batch, completion and filter change.
   for sig in (self.proxy.rowsInserted,self.proxy.rowsRemoved,self.proxy.modelReset,self.proxy.layoutChanged):sig.connect(self._listing_changed)
@@ -705,6 +712,32 @@ class FilePane(QWidget):
   if fmt=='ISO':return dt.toString('yyyy-MM-ddTHH:mm:ss')
   if fmt=='Compact':return dt.toString('yy-MM-dd HH:mm')
   return None
+ def show_activity(self,text,cancel_fn,delay_ms=300):
+  # Shown only if the work is still running after delay_ms, so fast folders
+  # and connects never flash a bar. Returns a token for hide_activity().
+  self._activity_token+=1; self._activity_cancel_fn=cancel_fn; self.activity_label.setText(text); self.activity_cancel.setEnabled(cancel_fn is not None)
+  if delay_ms<=0:self._activity_timer.stop(); self.activity.show()
+  elif not self.activity.isVisible():self._activity_timer.start(delay_ms)
+  return self._activity_token
+ def update_activity(self,text,token=None):
+  if token is None or token==self._activity_token:self.activity_label.setText(text)
+ def hide_activity(self,token=None):
+  if token is not None and token!=self._activity_token:return
+  self._activity_timer.stop(); self.activity.hide(); self._activity_cancel_fn=None
+ def _cancel_activity(self):
+  fn=self._activity_cancel_fn; self.hide_activity()
+  if fn:fn()
+ @staticmethod
+ def _count_text(n):return f'{n:,}'.replace(',',' ')
+ def _listing_started(self,path,refresh):
+  if refresh:return
+  self._listing_token=self.show_activity('Listing…',self._cancel_listing)
+ def _listing_progress(self,path,count):
+  self.update_activity(f'Listing… {self._count_text(count)} items',getattr(self,'_listing_token',None))
+ def _listing_ended(self,*_):
+  self.hide_activity(getattr(self,'_listing_token',None))
+ def _cancel_listing(self):
+  self.model.cancel(); self.owner.update_status()
  def _listing_changed(self,*_):
   if self.owner.active is self:self.owner.schedule_status()
  def eventFilter(self,obj,event):
@@ -1286,7 +1319,7 @@ class Main(QMainWindow):
   self.apply_theme(); self.refresh_views(); self.update_quicklook()
  def apply_theme(self):
   t=self.palette(); metrics=self.theme_metrics(); pad=metrics['padding']
-  self.setStyleSheet(('''QWidget { background:%(bg)s;color:%(fg)s;font-size:%(font_size)spx;selection-background-color:%(sel)s;selection-color:%(fg)s;} QTreeView,QTableView,QListWidget,QPlainTextEdit {background:%(bg)s;border:0;} QLineEdit,QComboBox {background:%(panel)s;color:%(fg)s;padding:7px 9px;border:1px solid %(border)s;border-radius:5px;} QLineEdit:focus,QComboBox:focus {border:%(focus_width)spx solid %(accent)s;} QListWidget {background:%(panel)s;padding:7px;border-right:1px solid %(border)s;} QListWidget::item {padding:6px;border-radius:4px;} QListWidget::item:hover {background:%(surface)s;} QListWidget::item:selected {background:%(sel)s;color:%(fg)s;} QTreeView::item,QTableView::item {padding:%(pad)spx 4px;} QTreeView::item:hover,QTableView::item:hover {background:%(surface)s;} QTreeView::item:selected,QTableView::item:selected {background:%(sel)s;color:%(fg)s;} QHeaderView::section {background:%(panel)s;color:%(muted)s;padding:6px;border:0;border-bottom:1px solid %(border)s;} QToolButton,QPushButton {background:transparent;color:%(fg)s;border:1px solid transparent;border-radius:5px;padding:6px 10px;} QToolButton:hover,QPushButton:hover {background:%(surface)s;border-color:%(border)s;} QPushButton:default,QPushButton:focus,QToolButton:focus {border:1px solid %(accent)s;} QPushButton {qproperty-iconSize:0px 0px;} QPushButton:pressed,QToolButton:pressed {background:%(sel)s;} QMenu {background:%(panel)s;border:1px solid %(border)s;padding:5px;} QMenu::item {padding:7px 24px;border-radius:4px;} QMenu::item:selected {background:%(sel)s;} QDialog {background:%(bg)s;} QCheckBox::indicator {width:15px;height:15px;border:1px solid %(border)s;border-radius:3px;background:%(panel)s;} QCheckBox::indicator:checked {background:%(surface)s;border:2px solid %(fg)s;} QWidget#filePane[activePane="true"] {border-top:2px solid %(fg)s;} QTabBar#paneTabs {border-bottom:1px solid %(border)s;} QTabBar#paneTabs::tab {min-width:72px;padding:6px 8px 6px 12px;color:%(muted)s;background:%(panel)s;border-right:1px solid %(border)s;} QTabBar#paneTabs::tab:selected {color:%(fg)s;background:%(surface)s;font-weight:600;border-bottom:2px solid %(fg)s;} QWidget#filePane[activePane="false"] QTabBar#paneTabs::tab:selected {color:%(fg)s;background:%(surface)s;font-weight:500;border-bottom:2px solid %(muted)s;} QTabBar#paneTabs[activePane="true"]::tab:selected {color:%(fg)s;background:%(sel)s;font-weight:700;border-bottom:2px solid %(fg)s;} QToolButton#paneTabClose {color:%(muted)s;background:transparent;border:0;border-radius:3px;padding:0;margin:0;} QToolButton#paneTabClose:hover {color:%(fg)s;background:%(sel)s;border:0;} QSplitter#mainSplitter::handle {background:transparent;width:7px;} QSplitter#mainSplitter::handle:horizontal {border-left:1px solid %(border)s;} QLabel#crumbsep {color:%(muted)s;padding:0 2px;} QProgressBar {background:%(bg)s;border:0;} QProgressBar::chunk {background:%(fg)s;} QLabel#muted {color:%(muted)s;} QLabel#status {color:%(muted)s;border-top:1px solid %(border)s;} QWidget#transferBar {background:%(panel)s;border-top:1px solid %(border)s;} QLabel#transferTitle {font-weight:600;} QWidget#transferBar QProgressBar {background:%(bg)s;border:1px solid %(border)s;border-radius:2px;} QWidget#transferBar QProgressBar::chunk {background:%(fg)s;} QScrollBar:vertical {background:%(bg)s;width:9px;margin:0;} QScrollBar::handle:vertical {background:%(border)s;min-height:24px;border-radius:4px;} QScrollBar::add-line,QScrollBar::sub-line {height:0;width:0;}''') % {**t,'pad':pad,**metrics})
+  self.setStyleSheet(('''QWidget { background:%(bg)s;color:%(fg)s;font-size:%(font_size)spx;selection-background-color:%(sel)s;selection-color:%(fg)s;} QTreeView,QTableView,QListWidget,QPlainTextEdit {background:%(bg)s;border:0;} QLineEdit,QComboBox {background:%(panel)s;color:%(fg)s;padding:7px 9px;border:1px solid %(border)s;border-radius:5px;} QLineEdit:focus,QComboBox:focus {border:%(focus_width)spx solid %(accent)s;} QListWidget {background:%(panel)s;padding:7px;border-right:1px solid %(border)s;} QListWidget::item {padding:6px;border-radius:4px;} QListWidget::item:hover {background:%(surface)s;} QListWidget::item:selected {background:%(sel)s;color:%(fg)s;} QTreeView::item,QTableView::item {padding:%(pad)spx 4px;} QTreeView::item:hover,QTableView::item:hover {background:%(surface)s;} QTreeView::item:selected,QTableView::item:selected {background:%(sel)s;color:%(fg)s;} QHeaderView::section {background:%(panel)s;color:%(muted)s;padding:6px;border:0;border-bottom:1px solid %(border)s;} QToolButton,QPushButton {background:transparent;color:%(fg)s;border:1px solid transparent;border-radius:5px;padding:6px 10px;} QToolButton:hover,QPushButton:hover {background:%(surface)s;border-color:%(border)s;} QPushButton:default,QPushButton:focus,QToolButton:focus {border:1px solid %(accent)s;} QPushButton {qproperty-iconSize:0px 0px;} QPushButton:pressed,QToolButton:pressed {background:%(sel)s;} QMenu {background:%(panel)s;border:1px solid %(border)s;padding:5px;} QMenu::item {padding:7px 24px;border-radius:4px;} QMenu::item:selected {background:%(sel)s;} QDialog {background:%(bg)s;} QCheckBox::indicator {width:15px;height:15px;border:1px solid %(border)s;border-radius:3px;background:%(panel)s;} QCheckBox::indicator:checked {background:%(surface)s;border:2px solid %(fg)s;} QWidget#filePane[activePane="true"] {border-top:2px solid %(fg)s;} QTabBar#paneTabs {border-bottom:1px solid %(border)s;} QTabBar#paneTabs::tab {min-width:72px;padding:6px 8px 6px 12px;color:%(muted)s;background:%(panel)s;border-right:1px solid %(border)s;} QTabBar#paneTabs::tab:selected {color:%(fg)s;background:%(surface)s;font-weight:600;border-bottom:2px solid %(fg)s;} QWidget#filePane[activePane="false"] QTabBar#paneTabs::tab:selected {color:%(fg)s;background:%(surface)s;font-weight:500;border-bottom:2px solid %(muted)s;} QTabBar#paneTabs[activePane="true"]::tab:selected {color:%(fg)s;background:%(sel)s;font-weight:700;border-bottom:2px solid %(fg)s;} QToolButton#paneTabClose {color:%(muted)s;background:transparent;border:0;border-radius:3px;padding:0;margin:0;} QToolButton#paneTabClose:hover {color:%(fg)s;background:%(sel)s;border:0;} QSplitter#mainSplitter::handle {background:transparent;width:7px;} QSplitter#mainSplitter::handle:horizontal {border-left:1px solid %(border)s;} QLabel#crumbsep {color:%(muted)s;padding:0 2px;} QProgressBar {background:%(bg)s;border:0;} QProgressBar::chunk {background:%(fg)s;} QLabel#muted {color:%(muted)s;} QLabel#status {color:%(muted)s;border-top:1px solid %(border)s;} QWidget#transferBar,QWidget#paneActivity {background:%(panel)s;border-top:1px solid %(border)s;} QLabel#transferTitle {font-weight:600;} QWidget#transferBar QProgressBar {background:%(bg)s;border:1px solid %(border)s;border-radius:2px;} QWidget#transferBar QProgressBar::chunk {background:%(fg)s;} QScrollBar:vertical {background:%(bg)s;width:9px;margin:0;} QScrollBar::handle:vertical {background:%(border)s;min-height:24px;border-radius:4px;} QScrollBar::add-line,QScrollBar::sub-line {height:0;width:0;}''') % {**t,'pad':pad,**metrics})
   for pane in (getattr(self,'pane1',None),getattr(self,'pane2',None)):
    if pane: pane.icons.set_palette(t); pane.model.setIconProvider(pane.icons)
   self.sync_row_heights()
@@ -1494,6 +1527,7 @@ class Main(QMainWindow):
   s=self.active.selected_rows(); parts=[]; root=self.active.view.rootIndex(); count=self.active.proxy.rowCount(root)
   if self.pane2.isVisible():parts.append(f'{self.pane_side(self.active).capitalize()} active')
   parts.append(f'{count} item(s)')
+  if self.active.model.is_partial():parts.append('listing cancelled · F5 lists again')
   if s:
    # Sizes come from the listing metadata: no stat() on the UI thread.
    pane=self.active; entries=pane.model.visible_entries(); total=0
@@ -2043,9 +2077,13 @@ class Main(QMainWindow):
   self._remote_probe_seq+=1; token=self._remote_probe_seq; self._remote_probe_tokens[id(pane)]=token
   pane.current=Path(os.path.abspath(os.path.expanduser(str(path)))); pane.path.setText(str(pane.current)); pane.update_breadcrumbs(); pane.view.setEnabled(False); self.status.setText(f'{pane.remote_name} · Checking…')
   worker=RemoteProbeWorker(token,pane.current,pane.remote_mount)
-  def done(result,p=pane,expected=token,ps=push,lr=leave_remote):
+  def cancel(p=pane,expected=token,name=pane.remote_name):
    if self._remote_probe_tokens.get(id(p))!=expected:return
-   p.view.setEnabled(True)
+   self._remote_probe_tokens.pop(id(p),None); p.view.setEnabled(True); p.update_breadcrumbs(); self.status.setText(f'{name} · Connection cancelled')
+  activity=pane.show_activity(f'Connecting to {pane.remote_name}…',cancel)
+  def done(result,p=pane,expected=token,ps=push,lr=leave_remote,act=activity):
+   if self._remote_probe_tokens.get(id(p))!=expected:return
+   p.hide_activity(act); p.view.setEnabled(True)
    if result.get('ok'):
     p._commit_go(result['path'],ps,lr,True); self.status.setText(f'{p.remote_name} · Connected')
    else:
@@ -3356,10 +3394,21 @@ class Main(QMainWindow):
  def open_cloud(self,name,target_pane=None):
   target_pane=target_pane or self.active
   mp=self._cloud_mountpoint(name); mp.mkdir(parents=True,exist_ok=True)
+  state={'cancelled':False}
+  def cancel():state['cancelled']=True; self.status.setText(f'{name} · Opening cancelled')
+  activity=target_pane.show_activity(f'Connecting to {name}…',cancel)
   def done(created_here):
+   target_pane.hide_activity(activity)
    if created_here:self._claim_mount(mp,'cloud',name)
-   self.build_sidebar(); target_pane.bind_remote(name,'CLOUD',mp,'/'); target_pane.go(str(mp)); self.set_active(target_pane); self.status.setText(f'Cloud mounted · {name}')
-  self._run_task(f'Mounting {name}…',lambda:self._mount_cloud_task(name,mp),done,self.err)
+   self.build_sidebar()
+   # The mount cannot be interrupted half-way; after Cancel it stays owned
+   # (unmounted on exit like any other) but the pane does not switch to it.
+   if state['cancelled']:self.status.setText(f'Cloud mounted · {name} · not opened (cancelled)'); return
+   target_pane.bind_remote(name,'CLOUD',mp,'/'); target_pane.go(str(mp)); self.set_active(target_pane); self.status.setText(f'Cloud mounted · {name}')
+  def failed(error):
+   target_pane.hide_activity(activity)
+   if not state['cancelled']:self.err(error)
+  self._run_task(f'Mounting {name}…',lambda:self._mount_cloud_task(name,mp),done,failed)
  def unmount_cloud(self,name):
   mp=self._cloud_mountpoint(name)
   if not path_is_mounted(mp):return

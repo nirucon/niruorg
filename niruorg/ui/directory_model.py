@@ -242,7 +242,7 @@ class DirectoryModel(QAbstractItemModel):
     """Flat, incrementally populated model of one directory."""
 
     directoryLoaded = Signal(str)
-    listingStarted = Signal(str)
+    listingStarted = Signal(str, bool)  # path, is_refresh
     listingProgress = Signal(str, int)
     listingFailed = Signal(str, str, str)
     listingCancelled = Signal(str)
@@ -265,6 +265,7 @@ class DirectoryModel(QAbstractItemModel):
         self._generation = 0
         self._worker = None
         self._loading = False
+        self._partial = False
         self._refresh_pending = False
         self._refreshing = False
         self._pending = {}
@@ -367,6 +368,7 @@ class DirectoryModel(QAbstractItemModel):
             self._worker.cancel()
             self._worker = None
         was_loading = self._loading
+        self._partial = was_loading and emit
         self._loading = False
         self._refresh_pending = False
         self._refreshing = False
@@ -376,6 +378,10 @@ class DirectoryModel(QAbstractItemModel):
         self._ingest_timer.stop()
         if emit and was_loading:
             self.listingCancelled.emit(self._root)
+
+    def is_partial(self) -> bool:
+        """True after Cancel stopped a listing: the rows shown are incomplete."""
+        return self._partial
 
     def is_loading(self) -> bool:
         return self._loading
@@ -545,6 +551,7 @@ class DirectoryModel(QAbstractItemModel):
         if self._worker is not None:
             self._worker.cancel()
         self._loading = True
+        self._partial = False
         self._refreshing = refresh
         self._pending = {}
         self._incoming = []
@@ -554,7 +561,7 @@ class DirectoryModel(QAbstractItemModel):
         worker.signals.batch.connect(self._on_batch)
         worker.signals.finished.connect(self._on_finished)
         self._worker = worker
-        self.listingStarted.emit(self._root)
+        self.listingStarted.emit(self._root, refresh)
         self.pool().start(worker)
 
     def _on_batch(self, generation, batch) -> None:

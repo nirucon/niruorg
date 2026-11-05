@@ -77,6 +77,7 @@ TESTS = [
     ('status-count-065-test.py', True, 30),
     ('large-listing-066-test.py', True, 90),
     ('breadcrumbs-067-test.py', True, 30),
+    ('activity-068-test.py', True, 30),
 ]
 
 def main() -> int:
