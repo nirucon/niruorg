@@ -7,6 +7,12 @@
 
 # Changelog
 
+## 0.6.1 — 2026-11-07
+
+- **Installer, unattended:** `./install.sh --yes` (or `NIRUORG_ASSUME_YES=1`, or `NIRUX_ASSUME_YES=1`, which `nirux extras install` sets when it runs without a terminal) installs missing packages without a prompt. Before, pacman's own question was answered by an empty stdin and the install failed on a fresh Arch system.
+- **Installer, Void Linux:** core dependencies (`python3-pyside6`, `-gui`, `-widgets`) and the optional integrations are installed with `xbps-install`. Before, the installer stopped with "Unsupported package manager".
+- **Reinstall after uninstall:** reinstalling the active version (for example after `./uninstall.sh`, which keeps the release directories) restores the launcher, desktop entry and icon instead of refusing.
+
 ## 0.6.0 — 2026-11-05
 
 - **Item count (O1):** the status bar count, selection size and filter count follow the asynchronous listing (it said "0 item(s)" for a 30 000-file folder). The name filter no longer hides everything (it filtered out the listed folder's own ancestors).

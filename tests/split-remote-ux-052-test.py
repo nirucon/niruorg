@@ -3,7 +3,7 @@ import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve
 from pathlib import Path
 s=app_source()
 for needle in [
- "VERSION='0.6.0'", "def open_sidebar_location", "def open_sidebar_other",
+ "VERSION='0.6.1'", "def open_sidebar_location", "def open_sidebar_other",
  "other=m.addAction(self.open_other_label())", "def _transfer_to_other_pane",
  "def copy_other_label(self):", "def move_other_label(self):", "def handle_pane_drop",
  "REMOTE · {self.remote_name} · {self.remote_protocol}", "LOCAL · {socket.gethostname()}",

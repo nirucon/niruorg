@@ -1,3 +1,11 @@
+# NIRUORG 0.6.1 — Installer fixes for fresh systems
+
+- Unattended installs (`./install.sh --yes`, `NIRUX_ASSUME_YES=1` from `nirux extras install`) install missing packages instead of failing at pacman's prompt.
+- Void Linux: dependencies are installed with `xbps-install` (`python3-pyside6`, `python3-pyside6-gui`, `python3-pyside6-widgets`).
+- Reinstalling the active version after `./uninstall.sh` restores the launcher instead of refusing.
+
+No application changes; settings, connections, Work Basket and workspaces are untouched.
+
 # NIRUORG 0.6.0 — Large folders, readable paths and clear states
 
 A correctness, responsiveness and maintainability release built from 0.5.1.

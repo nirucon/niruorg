@@ -3,7 +3,7 @@ from pathlib import Path
 
 app = app_source()
 install = Path('install.sh').read_text()
-assert "VERSION='0.6.0'" in app
+assert "VERSION='0.6.1'" in app
 
 # Behavioural SSH unlock/retry contract. Do not pin user-facing prose: wording may
 # legitimately improve without changing the security or retry behaviour.

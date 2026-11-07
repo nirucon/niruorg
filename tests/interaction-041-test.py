@@ -1,7 +1,7 @@
 import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
 s=app_source()
-assert "VERSION='0.6.0'" in s
+assert "VERSION='0.6.1'" in s
 assert 'class ImageViewerDialog(NiruDialog)' in s
 assert 'self.image_viewer(files,idx(),True,d)' in s, 'Gallery viewer must be owned by modal Gallery dialog'
 assert 'self.escape_handler' in s and "if state['fullscreen']:toggle_full()" in s

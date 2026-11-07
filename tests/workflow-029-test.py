@@ -2,7 +2,7 @@
 import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
 s=app_source()
-assert "VERSION='0.6.0'" in s
+assert "VERSION='0.6.1'" in s
 assert "self.s.value('work_basket'" in s
 assert 'def _save_work_basket' in s and "self.s.setValue('work_basket'" in s
 assert "WORK BASKET · {len(self.dropzone)}" in s

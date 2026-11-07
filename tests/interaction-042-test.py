@@ -4,7 +4,7 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 app=app_source()
 ins=(root/'install.sh').read_text()
-assert "VERSION='0.6.0'" in app
+assert "VERSION='0.6.1'" in app
 assert 'class ConnectionDiagnosticWorker(QRunnable)' in app
 assert "QPushButton('Diagnose…')" in app
 assert "[ts,'ping','--c','1','--timeout','3s',host]" in app

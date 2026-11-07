@@ -61,6 +61,7 @@ TESTS = [
     ('architecture-063-test.py', False, 8),
     ('release-package-055-test.py', False, 0),
     ('active-pane-ux-055-test.py', False, 0),
+    ('installer-unattended-056-test.py', False, 0),
     ('milestone-010-test.py', False, 0),
     ('milestone-011-test.py', False, 0),
     ('ui-polish-012-test.py', False, 0),

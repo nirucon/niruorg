@@ -2,7 +2,7 @@
 import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
 app=app_source()
-assert "VERSION='0.6.0'" in app
+assert "VERSION='0.6.1'" in app
 assert "def addone():" in app and "server_editor('Add connection')" in app
 assert "Could not open connection editor" in app
 assert "if label is not None:label.setVisible(visible)" in app

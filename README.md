@@ -48,9 +48,8 @@ computer; it is not a server-side copy.
 
 - Linux with Python 3 and PySide6. Developed on Arch (Omarchy/Hyprland) and
   used on Debian and on X11 with NIRUX.
-- The installer can install the core dependencies with `pacman` (Arch) or
-  `apt-get` (Debian). On Void, install Python 3 and PySide6 yourself first;
-  the installer does not use `xbps-install`.
+- The installer can install the core dependencies with `pacman` (Arch),
+  `xbps-install` (Void, since 0.6.1) or `apt-get` (Debian).
 - Optional integrations, used only when present: `sshfs`, `rclone`, `fuse3`,
   `mpv`, `ffmpeg`, `fd`, `ripgrep`, `7z`, `zip`/`unzip`, `bsdtar`
   (libarchive) and `secret-tool` (libsecret) for remembered secrets.
@@ -81,10 +80,14 @@ The installer stages the release under `~/.local/share/niruorg/releases/`,
 compiles the sources, runs the regression suite, `--self-test` and an
 offscreen Qt smoke test, and **only then** switches the `current` symlink.
 Earlier releases stay on disk and existing settings, connections, Work Basket
-and workspaces are kept. It refuses to replace the release that is already
-active.
+and workspaces are kept. It never replaces the active release in place;
+running it again for the same version only restores the launcher, desktop
+entry and icon.
 
-The installer may use `sudo` for **missing core dependencies**. Optional
+The installer may use `sudo` for **missing core dependencies** (Python 3 and
+PySide6, with pacman, xbps-install or apt-get). Without a terminal it cannot
+answer the package manager's question; `./install.sh --yes` installs them
+without asking. Optional
 integrations are only installed when you ask for them:
 
 ```sh
@@ -197,7 +200,7 @@ dumps or transfer logs to this repository.
 ./uninstall.sh
 ```
 
-This removes the launcher, desktop entry and icon only. Settings, logs,
+With NIRUX: `nirux extras uninstall niruorg`. This removes the launcher, desktop entry and icon only. Settings, logs,
 release directories and mounts are kept on purpose; inspect them before
 removing anything by hand.
 

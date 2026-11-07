@@ -13,5 +13,5 @@ for needle in [
  "self.copy_other_action.setText(self.copy_other_label())",
 ]:
  assert needle in s, needle
-assert "VERSION='0.6.0'" in s
+assert "VERSION='0.6.1'" in s
 print("0.5.1 active pane UX regression OK")

@@ -1,7 +1,7 @@
 import sys as _s, pathlib as _p; _s.path.insert(0, str(_p.Path(__file__).resolve().parent)); from source_contract import app_source  # noqa: E402
 from pathlib import Path
 s=app_source()
-checks=["VERSION='0.6.0'","self.tabs=PaneTabBar(self)","def new_tab(","def close_tab(","def _switch_tab(","Ctrl+T","Ctrl+W","Resumable transfers","Not enough free space","Root matches package name","def terminal_here","d.setWindowTitle('Locations')","def compare_panes","def duplicate_finder","def bulk_rename","def package_inspector","def operation_queue","def manage_workspaces","def actions"]
+checks=["VERSION='0.6.1'","self.tabs=PaneTabBar(self)","def new_tab(","def close_tab(","def _switch_tab(","Ctrl+T","Ctrl+W","Resumable transfers","Not enough free space","Root matches package name","def terminal_here","d.setWindowTitle('Locations')","def compare_panes","def duplicate_finder","def bulk_rename","def package_inspector","def operation_queue","def manage_workspaces","def actions"]
 for x in checks: assert x in s,x
 assert "importb.clicked.connect" not in s[s.index('def manage_targets'):s.index('def send_target')]
 print('milestone 0.5.1: OK')
